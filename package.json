@@ -1,9 +1,9 @@
 {
   "name": "turnos",
-  "productName": "turnos",
+  "productName": "Turnos",
   "version": "1.0.0",
   "private": true,
-  "description": "My Electron application description",
+  "description": "Sistema de turnos para consultorios",
   "keywords": [],
   "license": "MIT",
   "author": {
@@ -18,7 +18,9 @@
     "release": "electron-forge release",
     "lint": "oxlint && oxfmt --check",
     "lint:fix": "oxlint --fix && oxfmt --write",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "devDependencies": {
     "@electron-forge/cli": "^8.0.1",

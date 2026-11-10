@@ -1,36 +1,52 @@
 import type { ForgeConfig } from '@electron-forge/shared-types';
 import { MakerSquirrel } from '@electron-forge/maker-squirrel';
 import { MakerZIP } from '@electron-forge/maker-zip';
-import { MakerDeb } from '@electron-forge/maker-deb';
-import { MakerRpm } from '@electron-forge/maker-rpm';
 import { VitePlugin } from '@electron-forge/plugin-vite';
+import { AutoUnpackNativesPlugin } from '@electron-forge/plugin-auto-unpack-natives';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
+
+// Vite mete todo nuestro código (y las librerías de JavaScript puro) adentro de
+// la carpeta .vite. Lo único que NO se puede empaquetar así es better-sqlite3,
+// porque trae un archivo compilado (.node). Por eso lo dejamos "afuera" de Vite
+// (ver vite.main.config.mts) y acá le decimos al empaquetador que copie de esa
+// librería solo lo necesario: su código y el binario de Windows.
+const DE_BETTER_SQLITE3 = ['/package.json', '/lib', '/prebuilds', '/prebuilds/win32-x64.node'];
+
+function incluirEnElInstalador(archivo: string): boolean {
+  if (!archivo) return true;
+  if (archivo === '/package.json' || archivo === '/node_modules') return true;
+  if (archivo.startsWith('/.vite')) return true;
+  const base = '/node_modules/better-sqlite3';
+  if (archivo === base) return true;
+  if (!archivo.startsWith(base + '/')) return false;
+  const resto = archivo.slice(base.length);
+  return DE_BETTER_SQLITE3.includes(resto) || resto.startsWith('/lib/');
+}
 
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
+    executableName: 'Turnos',
+    // Devuelve true para lo que hay que DEJAR AFUERA del instalador.
+    ignore: (archivo) => !incluirEnElInstalador(archivo),
   },
   rebuildConfig: {},
   makers: [
-    new MakerSquirrel({}),
+    // El ícono y el nombre del instalador llegan en la etapa final.
+    new MakerSquirrel({ name: 'turnos', setupExe: 'Turnos-Instalador.exe' }),
     new MakerZIP({}, ['darwin']),
-    new MakerRpm({}),
-    new MakerDeb({}),
   ],
   plugins: [
     new VitePlugin({
-      // `build` can specify multiple entry builds, which can be Main process, Preload scripts, Worker process, etc.
-      // If you are familiar with Vite configuration, it will look really familiar.
       build: [
         {
-          // `entry` is just an alias for `build.lib.entry` in the corresponding file of `config`.
-          entry: 'src/main.ts',
+          entry: 'src/main/main.ts',
           config: 'vite.main.config.mts',
           target: 'main',
         },
         {
-          entry: 'src/preload.ts',
+          entry: 'src/preload/preload.ts',
           config: 'vite.preload.config.mts',
           target: 'preload',
         },
@@ -42,8 +58,8 @@ const config: ForgeConfig = {
         },
       ],
     }),
-    // Fuses are used to enable/disable various Electron functionality
-    // at package time, before code signing the application
+    // Saca los archivos .node del asar para que Windows los pueda cargar.
+    new AutoUnpackNativesPlugin({}),
     new FusesPlugin({
       version: FuseVersion.V1,
       [FuseV1Options.RunAsNode]: false,

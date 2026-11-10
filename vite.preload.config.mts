@@ -1,4 +1,8 @@
 import { defineConfig } from 'vite';
+import { fileURLToPath } from 'node:url';
 
-// https://vitejs.dev/config
-export default defineConfig({});
+export default defineConfig({
+  resolve: {
+    alias: { '@compartido': fileURLToPath(new URL('./src/compartido', import.meta.url)) },
+  },
+});
