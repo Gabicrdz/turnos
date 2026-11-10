@@ -84,4 +84,56 @@ export const MIGRACIONES: Migracion[] = [
       CREATE INDEX pacientes_por_apellido ON pacientes (apellido COLLATE NOCASE, nombre COLLATE NOCASE);
     `,
   },
+  {
+    nombre: 'Turnos: agenda con estados y sin superposiciones',
+    sql: /* sql */ `
+      CREATE TABLE turnos (
+        id             INTEGER PRIMARY KEY,
+        profesional_id INTEGER NOT NULL REFERENCES profesionales (id),
+        paciente_id    INTEGER NOT NULL REFERENCES pacientes (id),
+        fecha          TEXT    NOT NULL,                -- 'AAAA-MM-DD'
+        desde          TEXT    NOT NULL,                -- 'HH:MM'
+        hasta          TEXT    NOT NULL,                -- 'HH:MM' (desde + duración)
+        estado         TEXT    NOT NULL DEFAULT 'reservado'
+                       CHECK (estado IN ('reservado', 'confirmado', 'en_sala', 'atendido', 'ausente', 'cancelado')),
+        motivo         TEXT    NOT NULL DEFAULT '',     -- "Control", "Primera vez"… (administrativo)
+        llego_en       TEXT,                            -- cuándo pasó a "en sala" (para la sala de espera)
+        creado_en      TEXT    NOT NULL DEFAULT (datetime('now', 'localtime')),
+        actualizado_en TEXT    NOT NULL DEFAULT (datetime('now', 'localtime')),
+        CHECK (desde < hasta)
+      );
+      CREATE INDEX turnos_por_dia ON turnos (fecha, profesional_id, desde);
+      CREATE INDEX turnos_por_paciente ON turnos (paciente_id, fecha);
+
+      -- SEGUNDA LÍNEA DE DEFENSA: aunque el programa ya controla que dos turnos
+      -- del mismo profesional no se pisen, la base también se niega. Así, ni un
+      -- error del programa ni alguien editando con DB Browser pueden romper la agenda.
+      -- Dos turnos se pisan si uno empieza antes de que termine el otro (y al revés).
+      -- Los cancelados no cuentan: liberan el horario.
+      CREATE TRIGGER turnos_sin_superposicion_al_crear
+      BEFORE INSERT ON turnos
+      WHEN NEW.estado <> 'cancelado'
+      BEGIN
+        SELECT RAISE(ABORT, 'turno_superpuesto')
+        WHERE EXISTS (
+          SELECT 1 FROM turnos t
+          WHERE t.profesional_id = NEW.profesional_id AND t.fecha = NEW.fecha AND t.estado <> 'cancelado'
+            AND t.desde < NEW.hasta AND NEW.desde < t.hasta
+        );
+      END;
+
+      CREATE TRIGGER turnos_sin_superposicion_al_cambiar
+      BEFORE UPDATE OF profesional_id, fecha, desde, hasta, estado ON turnos
+      WHEN NEW.estado <> 'cancelado'
+      BEGIN
+        SELECT RAISE(ABORT, 'turno_superpuesto')
+        WHERE EXISTS (
+          SELECT 1 FROM turnos t
+          WHERE t.id <> NEW.id
+            AND t.profesional_id = NEW.profesional_id AND t.fecha = NEW.fecha AND t.estado <> 'cancelado'
+            AND t.desde < NEW.hasta AND NEW.desde < t.hasta
+        );
+      END;
+    `,
+  },
 ];

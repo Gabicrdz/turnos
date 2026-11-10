@@ -7,7 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Estructura } from '@/components/layout/estructura';
-import { PaginaHoy } from '@/features/hoy/pagina-hoy';
+import { PaginaAgenda } from '@/features/agenda/pagina-agenda';
 import { PaginaPacientes } from '@/features/pacientes/pagina-pacientes';
 import { PaginaProfesionales } from '@/features/profesionales/pagina-profesionales';
 import { PaginaAjustes } from '@/features/ajustes/pagina-ajustes';
@@ -19,7 +19,7 @@ const router = createHashRouter([
     path: '/',
     element: <Estructura />,
     children: [
-      { index: true, element: <PaginaHoy /> },
+      { index: true, element: <PaginaAgenda /> },
       { path: 'pacientes', element: <PaginaPacientes /> },
       { path: 'profesionales', element: <PaginaProfesionales /> },
       { path: 'ajustes', element: <PaginaAjustes /> },

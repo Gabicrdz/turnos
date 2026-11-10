@@ -8,9 +8,14 @@ import {
   esquemaBloqueo,
   esquemaBuscarPacientes,
   esquemaConsultorio,
+  esquemaEstado,
+  esquemaFecha,
+  esquemaMoverTurno,
   esquemaObraSocial,
   esquemaPaciente,
   esquemaProfesional,
+  esquemaRango,
+  esquemaTurno,
   id,
 } from '@compartido/esquemas';
 import type { InfoSistema, Respuesta } from '@compartido/tipos';
@@ -21,7 +26,8 @@ import { cambiarActivoProfesional, guardarProfesional, listarProfesionales } fro
 import { bloqueosProximos, borrarBloqueo, crearBloqueo } from './servicios/bloqueos';
 import { cambiarActivoObraSocial, guardarObraSocial, listarObrasSociales } from './servicios/obras-sociales';
 import { guardarConsultorio, obtenerConsultorio, resumen } from './servicios/consultorio';
-import { cargarEjemplo } from './servicios/ejemplo';
+import { cargarEjemplo, cargarTurnosEjemplo } from './servicios/ejemplo';
+import { agenda, cambiarEstado, darTurno, horariosLibres, moverTurno, proximosLibres, turnosDePaciente } from './servicios/turnos';
 
 /** Convierte cualquier error en un mensaje para la ventana. */
 export function mensajeDeError(error: unknown): string {
@@ -74,6 +80,21 @@ export function registrarCanales(info: () => InfoSistema): void {
     return null;
   });
 
+  // ── Turnos ──
+  manejar(CANALES.turnosAgenda, z.tuple([esquemaRango]), (rango) => agenda(db(), rango));
+  manejar(CANALES.turnosLibres, z.tuple([id, esquemaFecha]), (pid, fecha) => horariosLibres(db(), pid, fecha));
+  manejar(CANALES.turnosProximosLibres, z.tuple([id]), (pid) => proximosLibres(db(), pid));
+  manejar(CANALES.turnosDar, z.tuple([esquemaTurno]), (datos) => darTurno(db(), datos));
+  manejar(CANALES.turnosMover, z.tuple([esquemaMoverTurno]), (datos) => {
+    moverTurno(db(), datos);
+    return null;
+  });
+  manejar(CANALES.turnosEstado, z.tuple([id, esquemaEstado]), (tid, estado) => {
+    cambiarEstado(db(), tid, estado);
+    return null;
+  });
+  manejar(CANALES.turnosDePaciente, z.tuple([id]), (pid) => turnosDePaciente(db(), pid));
+
   // ── Obras sociales ──
   manejar(CANALES.obrasListar, nada, () => listarObrasSociales(db()));
   manejar(CANALES.obrasGuardar, z.tuple([esquemaObraSocial]), (datos) => guardarObraSocial(db(), datos));
@@ -91,4 +112,5 @@ export function registrarCanales(info: () => InfoSistema): void {
   manejar(CANALES.sistemaInfo, nada, info);
   manejar(CANALES.sistemaResumen, nada, () => resumen(db()));
   manejar(CANALES.sistemaEjemplo, nada, () => cargarEjemplo(db()));
+  manejar(CANALES.sistemaEjemploTurnos, nada, () => cargarTurnosEjemplo(db()));
 }

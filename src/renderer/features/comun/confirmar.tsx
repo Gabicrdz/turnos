@@ -12,6 +12,8 @@ export interface Confirmacion {
   titulo: string;
   descripcion: string;
   boton: string;
+  /** Texto del botón que no hace nada (por defecto "Cancelar"). */
+  volver?: string;
   alConfirmar: () => void;
 }
 
@@ -29,7 +31,7 @@ export function Confirmar({
         <AlertDialogTitle>{confirmacion?.titulo}</AlertDialogTitle>
         <AlertDialogDescription>{confirmacion?.descripcion}</AlertDialogDescription>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogCancel>{confirmacion?.volver ?? 'Cancelar'}</AlertDialogCancel>
           <AlertDialogAction peligro onClick={() => confirmacion?.alConfirmar()}>
             {confirmacion?.boton}
           </AlertDialogAction>

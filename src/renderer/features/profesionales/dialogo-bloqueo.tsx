@@ -17,7 +17,11 @@ export function DialogoBloqueo({ abierto, profesionales, alCerrar }: { abierto: 
   const [hasta, setHasta] = useState('');
   const [motivo, setMotivo] = useState('');
   const [error, setError] = useState('');
-  const crear = useAccion((d: DatosBloqueo) => desenvolver(turnos().bloqueos.crear(d)), [CLAVES.bloqueos], 'Día sin atención agregado');
+  const crear = useAccion((d: DatosBloqueo) => desenvolver(turnos().bloqueos.crear(d)), [CLAVES.bloqueos, CLAVES.agenda, CLAVES.libres], (r) =>
+    r.turnosAfectados
+      ? `Día sin atención agregado. Ojo: ya había ${r.turnosAfectados === 1 ? '1 turno dado' : `${r.turnosAfectados} turnos dados`} esos días; avisales y reprogramalos.`
+      : 'Día sin atención agregado',
+  );
 
   useEffect(() => {
     if (!abierto) return;

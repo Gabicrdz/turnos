@@ -3,6 +3,7 @@
 // TypeScript saca de acá los tipos, así la ventana y el main hablan igual.
 import { z } from 'zod';
 import { aMinutos, esHora } from './horarios';
+import { ESTADOS } from './agenda';
 
 export const id = z.number().int().positive();
 const texto = (campo: string, maximo: number) =>
@@ -130,3 +131,36 @@ export const esquemaConsultorio = z.object({
   telefono: textoOpcional(40),
 });
 export type DatosConsultorio = z.input<typeof esquemaConsultorio>;
+
+// ---------- Turnos ----------
+export const esquemaEstado = z.enum(ESTADOS);
+
+export const esquemaTurno = z.object({
+  profesionalId: id,
+  pacienteId: id,
+  fecha: esquemaFecha,
+  desde: esquemaHora,
+  /** Si no viene, se usa la duración de turno del profesional. */
+  duracionMin: z.number().int().min(5).max(240).optional(),
+  motivo: textoOpcional(80),
+});
+export type DatosTurno = z.input<typeof esquemaTurno>;
+
+/** Reprogramar: otro día, otra hora y/o otro profesional. */
+export const esquemaMoverTurno = z.object({
+  id,
+  profesionalId: id,
+  fecha: esquemaFecha,
+  desde: esquemaHora,
+});
+export type DatosMoverTurno = z.input<typeof esquemaMoverTurno>;
+
+const MAXIMO_DIAS_AGENDA = 42;
+/** Un rango de días para la agenda (la semana, o un día solo). */
+export const esquemaRango = z
+  .object({ desde: esquemaFecha, hasta: esquemaFecha })
+  .refine((r) => r.desde <= r.hasta, { message: '"Hasta" no puede ser antes que "desde".' })
+  .refine((r) => (Date.parse(r.hasta) - Date.parse(r.desde)) / 86_400_000 < MAXIMO_DIAS_AGENDA, {
+    message: `La agenda se pide de a ${MAXIMO_DIAS_AGENDA} días como máximo.`,
+  });
+export type DatosRango = z.input<typeof esquemaRango>;

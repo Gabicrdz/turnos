@@ -26,7 +26,7 @@ export function PaginaProfesionales() {
   const [abierto, setAbierto] = useState<Profesional | 'nuevo' | null>(null);
   const [nuevoBloqueo, setNuevoBloqueo] = useState(false);
   const [confirmacion, setConfirmacion] = useState<Confirmacion | null>(null);
-  const borrar = useAccion((id: number) => desenvolver(turnos().bloqueos.borrar(id)), [CLAVES.bloqueos], 'Día sin atención borrado');
+  const borrar = useAccion((id: number) => desenvolver(turnos().bloqueos.borrar(id)), [CLAVES.bloqueos, CLAVES.agenda, CLAVES.libres], 'Día sin atención borrado');
 
   const lista = profesionales.data ?? [];
   const activos = lista.filter((p) => p.activo);

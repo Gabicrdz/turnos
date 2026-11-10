@@ -13,7 +13,7 @@ export function useConsultorio() {
 }
 
 const SECCIONES: { ruta: string; nombre: string; icono: LucideIcon }[] = [
-  { ruta: '/', nombre: 'Hoy', icono: CalendarDays },
+  { ruta: '/', nombre: 'Agenda', icono: CalendarDays },
   { ruta: '/pacientes', nombre: 'Pacientes', icono: UsersRound },
   { ruta: '/profesionales', nombre: 'Profesionales', icono: Stethoscope },
 ];

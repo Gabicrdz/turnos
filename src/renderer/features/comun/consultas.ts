@@ -1,6 +1,7 @@
 // Consultas (leer) y acciones (escribir) con TanStack Query. Cada lista tiene
 // una "clave"; después de guardar, se invalidan las claves que cambiaron y
 // las pantallas se actualizan solas.
+import { useEffect, useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { DatosBuscarPacientes } from '@compartido/esquemas';
@@ -12,6 +13,9 @@ export const CLAVES = {
   bloqueos: ['bloqueos'],
   obras: ['obras-sociales'],
   consultorio: ['consultorio'],
+  agenda: ['agenda'],
+  libres: ['libres'],
+  turnosPaciente: ['turnos-paciente'],
   resumen: ['resumen'],
 } as const;
 
@@ -51,8 +55,18 @@ export function useCargarEjemplo() {
     mutationFn: () => desenvolver(turnos().sistema.cargarEjemplo()),
     onSuccess: async (r) => {
       await cliente.invalidateQueries();
-      toast.success(`Listo: ${r.pacientes} pacientes, ${r.profesionales} profesionales y ${r.obrasSociales} obras sociales de ejemplo`);
+      toast.success(`Listo: ${r.pacientes} pacientes, ${r.profesionales} profesionales, ${r.obrasSociales} obras sociales y ${r.turnos} turnos de ejemplo`);
     },
     onError: (e) => toast.error(e.message),
   });
+}
+
+/** Espera a que dejen de escribir (250 ms) para buscar. */
+export function useDemorado<T>(valor: T, ms = 250): T {
+  const [demorado, setDemorado] = useState(valor);
+  useEffect(() => {
+    const t = window.setTimeout(() => setDemorado(valor), ms);
+    return () => window.clearTimeout(t);
+  }, [valor, ms]);
+  return demorado;
 }

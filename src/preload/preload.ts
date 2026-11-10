@@ -21,6 +21,15 @@ const api: ApiTurnos = {
     crear: (datos) => pedir(CANALES.bloqueosCrear, datos),
     borrar: (id) => pedir(CANALES.bloqueosBorrar, id),
   },
+  turnos: {
+    agenda: (rango) => pedir(CANALES.turnosAgenda, rango),
+    libres: (profesionalId, fecha) => pedir(CANALES.turnosLibres, profesionalId, fecha),
+    proximosLibres: (profesionalId) => pedir(CANALES.turnosProximosLibres, profesionalId),
+    dar: (datos) => pedir(CANALES.turnosDar, datos),
+    mover: (datos) => pedir(CANALES.turnosMover, datos),
+    cambiarEstado: (id, estado) => pedir(CANALES.turnosEstado, id, estado),
+    dePaciente: (pacienteId) => pedir(CANALES.turnosDePaciente, pacienteId),
+  },
   obrasSociales: {
     listar: () => pedir(CANALES.obrasListar),
     guardar: (datos) => pedir(CANALES.obrasGuardar, datos),
@@ -34,6 +43,7 @@ const api: ApiTurnos = {
     info: () => pedir(CANALES.sistemaInfo),
     resumen: () => pedir(CANALES.sistemaResumen),
     cargarEjemplo: () => pedir(CANALES.sistemaEjemplo),
+    cargarTurnosEjemplo: () => pedir(CANALES.sistemaEjemploTurnos),
   },
 };
 

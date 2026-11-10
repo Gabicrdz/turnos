@@ -65,3 +65,21 @@ export const pacientes = sqliteTable('pacientes', {
   creadoEn: text('creado_en').notNull().default(ahora),
   actualizadoEn: text('actualizado_en').notNull().default(ahora),
 });
+
+export const turnos = sqliteTable('turnos', {
+  id: integer('id').primaryKey(),
+  profesionalId: integer('profesional_id')
+    .notNull()
+    .references(() => profesionales.id),
+  pacienteId: integer('paciente_id')
+    .notNull()
+    .references(() => pacientes.id),
+  fecha: text('fecha').notNull(),
+  desde: text('desde').notNull(),
+  hasta: text('hasta').notNull(),
+  estado: text('estado').notNull().default('reservado'),
+  motivo: text('motivo').notNull().default(''),
+  llegoEn: text('llego_en'),
+  creadoEn: text('creado_en').notNull().default(ahora),
+  actualizadoEn: text('actualizado_en').notNull().default(ahora),
+});

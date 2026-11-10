@@ -28,10 +28,10 @@ export function DialogoProfesional({ profesional, alCerrar }: { profesional: Pro
     setF(existente ? { ...existente } : VACIO);
   }, [profesional, existente]);
 
-  const guardar = useAccion((d: DatosProfesional) => desenvolver(turnos().profesionales.guardar(d)), [CLAVES.profesionales, CLAVES.bloqueos], existente ? 'Cambios guardados' : 'Profesional agregado');
+  const guardar = useAccion((d: DatosProfesional) => desenvolver(turnos().profesionales.guardar(d)), [CLAVES.profesionales, CLAVES.bloqueos, CLAVES.libres], existente ? 'Cambios guardados' : 'Profesional agregado');
   const activo = useAccion(
     (a: boolean) => desenvolver(turnos().profesionales.cambiarActivo(existente!.id, a)),
-    [CLAVES.profesionales],
+    [CLAVES.profesionales, CLAVES.libres],
     () => (existente?.activo ? 'Profesional dado de baja' : 'Profesional reactivado'),
   );
 

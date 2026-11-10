@@ -1,6 +1,8 @@
 // Ficha del paciente (nuevo o para editar). Valida con el mismo esquema Zod
 // que el main y muestra cada error debajo de su campo.
 import { useEffect, useState, type FormEvent } from 'react';
+import { useNavigate } from 'react-router';
+import { CalendarPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { esquemaPaciente, type DatosPaciente } from '@compartido/esquemas';
 import type { Paciente } from '@compartido/tipos';
@@ -14,12 +16,36 @@ import { desenvolver, turnos } from '@/lib/api';
 import { edad, fechaISO } from '@/lib/fechas';
 import { CLAVES, useAccion, useObrasSociales } from '@/features/comun/consultas';
 import { dniConPuntos } from '@/features/comun/encabezado';
+import { TurnosDelPaciente } from '@/features/agenda/turnos-del-paciente';
 
 type Errores = Partial<Record<keyof DatosPaciente, string>>;
 
 const VACIO = { apellido: '', nombre: '', dni: '', fechaNacimiento: '', telefono: '', email: '', obraSocialId: 'particular', numeroAfiliado: '', notas: '' };
 
-export function DialogoPaciente({ paciente, alCerrar }: { paciente: Paciente | 'nuevo' | null; alCerrar: () => void }) {
+/**
+ * Lo escrito en un buscador, como punto de partida para un paciente nuevo:
+ * "30123456" → DNI; "pérez juan" → apellido "Pérez", nombre "Juan".
+ */
+function desdeSugerencia(texto: string): Partial<typeof VACIO> {
+  const limpio = texto.trim();
+  if (!limpio) return {};
+  if (/^[\d.\s]+$/.test(limpio)) return { dni: limpio.replace(/\D/g, '') };
+  const mayuscula = (p: string) => p.charAt(0).toLocaleUpperCase('es') + p.slice(1);
+  const [apellido = '', ...resto] = limpio.split(/\s+/).map(mayuscula);
+  return { apellido, nombre: resto.join(' ') };
+}
+
+interface Props {
+  paciente: Paciente | 'nuevo' | null;
+  alCerrar: () => void;
+  /** Para uno nuevo: lo que se escribió en el buscador. */
+  sugerencia?: string;
+  /** Avisa el id y el nombre del paciente guardado (lo usa el diálogo de turnos). */
+  alGuardar?: (id: number, nombre: string) => void;
+}
+
+export function DialogoPaciente({ paciente, alCerrar, sugerencia = '', alGuardar }: Props) {
+  const navegar = useNavigate();
   const [f, setF] = useState(VACIO);
   const [errores, setErrores] = useState<Errores>({});
   const obras = useObrasSociales();
@@ -41,14 +67,16 @@ export function DialogoPaciente({ paciente, alCerrar }: { paciente: Paciente | '
             numeroAfiliado: existente.numeroAfiliado,
             notas: existente.notas,
           }
-        : VACIO,
+        : { ...VACIO, ...desdeSugerencia(sugerencia) },
     );
+    // La sugerencia solo se usa al abrir
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paciente, existente]);
 
-  const guardar = useAccion((d: DatosPaciente) => desenvolver(turnos().pacientes.guardar(d)), [CLAVES.pacientes, CLAVES.obras], existente ? 'Cambios guardados' : 'Paciente agregado');
+  const guardar = useAccion((d: DatosPaciente) => desenvolver(turnos().pacientes.guardar(d)), [CLAVES.pacientes, CLAVES.obras, CLAVES.agenda], existente ? 'Cambios guardados' : 'Paciente agregado');
   const activo = useAccion(
     (a: boolean) => desenvolver(turnos().pacientes.cambiarActivo(existente!.id, a)),
-    [CLAVES.pacientes, CLAVES.obras],
+    [CLAVES.pacientes, CLAVES.obras, CLAVES.agenda],
     (_) => (existente?.activo ? 'Paciente dado de baja' : 'Paciente reactivado'),
   );
 
@@ -74,7 +102,10 @@ export function DialogoPaciente({ paciente, alCerrar }: { paciente: Paciente | '
       return setErrores(nuevos);
     }
     guardar.mutate(r.data, {
-      onSuccess: alCerrar,
+      onSuccess: (id) => {
+        alGuardar?.(id, `${r.data.apellido}, ${r.data.nombre}`);
+        alCerrar();
+      },
       // Errores del main (DNI repetido, fecha futura…): al campo que corresponde
       onError: (error) => {
         if (error.message.includes('DNI')) setErrores({ dni: error.message });
@@ -91,7 +122,7 @@ export function DialogoPaciente({ paciente, alCerrar }: { paciente: Paciente | '
   return (
     <Dialog open={paciente !== null} onOpenChange={(a) => !a && alCerrar()}>
       <DialogContent className="max-w-[720px]">
-        <form onSubmit={enviar} noValidate>
+        <form onSubmit={enviar} noValidate className="flex min-h-0 flex-1 flex-col">
           <DialogHeader>
             <DialogTitle className="font-display text-2xl">{existente ? `${existente.apellido}, ${existente.nombre}` : 'Nuevo paciente'}</DialogTitle>
             <DialogDescription>
@@ -152,6 +183,29 @@ export function DialogoPaciente({ paciente, alCerrar }: { paciente: Paciente | '
             >
               <Textarea id="p-notas" rows={2} maxLength={300} value={f.notas} onChange={(e) => cambiar('notas')(e.target.value)} />
             </Campo>
+            {existente && (
+              <section aria-labelledby="t-turnos-paciente" className="col-span-2 flex flex-col gap-3 border-t border-linea pt-4">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 id="t-turnos-paciente" className="font-display text-lg font-semibold">
+                    Turnos
+                  </h3>
+                  {existente.activo && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        alCerrar();
+                        navegar('/', { state: { nuevoTurnoPara: { id: existente.id, nombre: `${existente.apellido}, ${existente.nombre}` } } });
+                      }}
+                    >
+                      <CalendarPlus aria-hidden="true" />
+                      Dar turno
+                    </Button>
+                  )}
+                </div>
+                <TurnosDelPaciente pacienteId={existente.id} />
+              </section>
+            )}
           </DialogBody>
           <DialogFooter className="sm:justify-between">
             <div>

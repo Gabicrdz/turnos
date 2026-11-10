@@ -1,6 +1,6 @@
 // Lista de pacientes: buscar (por nombre, DNI o teléfono), filtrar por
 // cobertura y abrir la ficha para editar.
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Plus, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,19 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { cn } from '@/lib/utils';
 import { edad } from '@/lib/fechas';
 import type { Paciente } from '@compartido/tipos';
-import { useCargarEjemplo, useObrasSociales, usePacientes, useResumen } from '@/features/comun/consultas';
+import { useCargarEjemplo, useDemorado, useObrasSociales, usePacientes, useResumen } from '@/features/comun/consultas';
 import { Encabezado, Vacio, dniConPuntos } from '@/features/comun/encabezado';
 import { DialogoPaciente } from './dialogo-paciente';
-
-/** Espera a que dejen de escribir (250 ms) para buscar. */
-function useDemorado<T>(valor: T, ms = 250): T {
-  const [demorado, setDemorado] = useState(valor);
-  useEffect(() => {
-    const t = window.setTimeout(() => setDemorado(valor), ms);
-    return () => window.clearTimeout(t);
-  }, [valor, ms]);
-  return demorado;
-}
 
 export function PaginaPacientes() {
   const [texto, setTexto] = useState('');

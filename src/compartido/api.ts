@@ -4,11 +4,28 @@ import type {
   DatosBloqueo,
   DatosBuscarPacientes,
   DatosConsultorio,
+  DatosMoverTurno,
   DatosObraSocial,
   DatosPaciente,
   DatosProfesional,
+  DatosRango,
+  DatosTurno,
 } from './esquemas';
-import type { Bloqueo, Consultorio, InfoSistema, ObraSocial, Paciente, Profesional, Respuesta, Resumen } from './tipos';
+import type { EstadoTurno } from './agenda';
+import type {
+  Agenda,
+  Bloqueo,
+  BloqueoCreado,
+  Consultorio,
+  HorarioLibre,
+  InfoSistema,
+  ObraSocial,
+  Paciente,
+  Profesional,
+  Respuesta,
+  Resumen,
+  TurnosDePaciente,
+} from './tipos';
 
 export interface ApiTurnos {
   pacientes: {
@@ -24,8 +41,20 @@ export interface ApiTurnos {
   bloqueos: {
     /** Los que terminan hoy o después (los viejos no hacen falta). */
     proximos(): Promise<Respuesta<Bloqueo[]>>;
-    crear(datos: DatosBloqueo): Promise<Respuesta<number>>;
+    crear(datos: DatosBloqueo): Promise<Respuesta<BloqueoCreado>>;
     borrar(id: number): Promise<Respuesta<null>>;
+  };
+  turnos: {
+    /** Turnos y días sin atención de un rango (un día o una semana). */
+    agenda(rango: DatosRango): Promise<Respuesta<Agenda>>;
+    /** Horarios libres de un profesional en un día (sin los que ya pasaron). */
+    libres(profesionalId: number, fecha: string): Promise<Respuesta<string[]>>;
+    /** Los próximos horarios libres de un profesional, desde ahora. */
+    proximosLibres(profesionalId: number): Promise<Respuesta<HorarioLibre[]>>;
+    dar(datos: DatosTurno): Promise<Respuesta<number>>;
+    mover(datos: DatosMoverTurno): Promise<Respuesta<null>>;
+    cambiarEstado(id: number, estado: EstadoTurno): Promise<Respuesta<null>>;
+    dePaciente(pacienteId: number): Promise<Respuesta<TurnosDePaciente>>;
   };
   obrasSociales: {
     listar(): Promise<Respuesta<ObraSocial[]>>;
@@ -41,6 +70,8 @@ export interface ApiTurnos {
     resumen(): Promise<Respuesta<Resumen>>;
     /** Carga profesionales, obras sociales y pacientes de ejemplo (solo si no hay pacientes). */
     cargarEjemplo(): Promise<Respuesta<Resumen>>;
+    /** Carga turnos de ejemplo (2 semanas atrás y 2 adelante), solo si no hay turnos. */
+    cargarTurnosEjemplo(): Promise<Respuesta<number>>;
   };
 }
 
@@ -54,6 +85,13 @@ export const CANALES = {
   bloqueosProximos: 'bloqueos:proximos',
   bloqueosCrear: 'bloqueos:crear',
   bloqueosBorrar: 'bloqueos:borrar',
+  turnosAgenda: 'turnos:agenda',
+  turnosLibres: 'turnos:libres',
+  turnosProximosLibres: 'turnos:proximos-libres',
+  turnosDar: 'turnos:dar',
+  turnosMover: 'turnos:mover',
+  turnosEstado: 'turnos:estado',
+  turnosDePaciente: 'turnos:de-paciente',
   obrasListar: 'obras:listar',
   obrasGuardar: 'obras:guardar',
   obrasActivo: 'obras:activo',
@@ -62,4 +100,5 @@ export const CANALES = {
   sistemaInfo: 'sistema:info',
   sistemaResumen: 'sistema:resumen',
   sistemaEjemplo: 'sistema:ejemplo',
+  sistemaEjemploTurnos: 'sistema:ejemplo-turnos',
 } as const;

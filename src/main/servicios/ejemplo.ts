@@ -1,6 +1,6 @@
 // Datos de ejemplo para probar sin cargar todo a mano: un consultorio chico
-// de Formosa con 3 profesionales, obras sociales comunes y 30 pacientes.
-// Solo se puede cargar si todavía no hay pacientes.
+// de Formosa con 3 profesionales, obras sociales comunes, 30 pacientes y
+// cuatro semanas de turnos. Solo se puede cargar si todavía no hay pacientes.
 import type { BaseDeDatos } from '../db/conexion';
 import { esquemaObraSocial, esquemaPaciente, esquemaProfesional } from '@compartido/esquemas';
 import type { Resumen } from '@compartido/tipos';
@@ -9,6 +9,11 @@ import { guardarObraSocial } from './obras-sociales';
 import { guardarPaciente } from './pacientes';
 import { guardarProfesional } from './profesionales';
 import { resumen } from './consultorio';
+import { sumarMinutos, type EstadoTurno } from '@compartido/agenda';
+import { aMinutos, diaDeLaSemana, horariosDeTurno } from '@compartido/horarios';
+import { fechaLocal, horaLocal } from './fechas';
+import { estaBloqueado } from './bloqueos';
+import { listarProfesionales } from './profesionales';
 
 const OBRAS_SOCIALES = ['IASEP', 'PAMI', 'OSDE', 'Swiss Medical', 'OSECAC', 'Sancor Salud', 'Galeno', 'OSPRERA'];
 
@@ -66,7 +71,7 @@ const PACIENTES: [string, string, string, string, string, number | null, string]
   ['Zárate', 'Gustavo', '30123456', '1983-09-22', '370 488-9595', 6, 'G-334410'],
 ];
 
-export function cargarEjemplo(db: BaseDeDatos): Resumen {
+export function cargarEjemplo(db: BaseDeDatos, ahora: Date = new Date()): Resumen {
   if ((db.$client.prepare('SELECT count(*) AS n FROM pacientes').get() as { n: number }).n > 0) {
     throw new ErrorDeUsuario('Ya hay pacientes cargados: los datos de ejemplo son solo para un consultorio vacío.');
   }
@@ -84,6 +89,87 @@ export function cargarEjemplo(db: BaseDeDatos): Resumen {
         esquemaPaciente.parse({ apellido, nombre, dni, fechaNacimiento, telefono, obraSocialId: os === null ? null : ids[os], numeroAfiliado }),
       );
     }
+    // Los turnos, solo con los profesionales de ejemplo (de los propios no conocemos el horario real)
+    if (!hayProfesionales) cargarTurnosEjemplo(db, ahora);
   })();
   return resumen(db);
+}
+
+/** Números "al azar" pero siempre los mismos (semilla fija): la demo sale igual cada vez. */
+function azar(semilla: number) {
+  let a = semilla;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const MOTIVOS = ['Control', 'Control', 'Control', 'Primera vez', 'Resultados de estudios', 'Certificado', '', '', ''];
+
+/**
+ * Turnos de ejemplo: de 14 días atrás a 14 días adelante. Los pasados quedan
+ * atendidos (con algún ausente y cancelado), los de hoy según la hora, y los
+ * próximos se van vaciando a medida que se alejan (como en una agenda real).
+ * Solo si todavía no hay turnos.
+ */
+export function cargarTurnosEjemplo(db: BaseDeDatos, ahora: Date = new Date()): number {
+  if ((db.$client.prepare('SELECT count(*) AS n FROM turnos').get() as { n: number }).n > 0) {
+    throw new ErrorDeUsuario('Ya hay turnos cargados: los turnos de ejemplo son solo para una agenda vacía.');
+  }
+  const pacientes = (db.$client.prepare('SELECT id FROM pacientes WHERE activo = 1 ORDER BY id').all() as { id: number }[]).map((p) => p.id);
+  const profesionales = listarProfesionales(db).filter((p) => p.activo && p.horarios.length);
+  if (!pacientes.length || !profesionales.length) throw new ErrorDeUsuario('Primero cargá profesionales con horario y pacientes.');
+
+  const r = azar(20261110);
+  const hoy = fechaLocal(ahora);
+  const minutoActual = aMinutos(horaLocal(ahora));
+  const insertar = db.$client.prepare(
+    'INSERT INTO turnos (profesional_id, paciente_id, fecha, desde, hasta, estado, motivo, llego_en, creado_en) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+  );
+  // Cada paciente, como mucho un turno por día (y así nunca se pisan)
+  const conTurno = new Set<string>();
+  let creados = 0;
+
+  db.$client.transaction(() => {
+    for (let desplazamiento = -14; desplazamiento <= 14; desplazamiento++) {
+      const dia = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() + desplazamiento, 12);
+      const fecha = fechaLocal(dia);
+      for (const p of profesionales) {
+        const franjas = p.horarios.filter((h) => h.diaSemana === diaDeLaSemana(fecha));
+        if (!franjas.length || estaBloqueado(db, p.id, fecha)) continue;
+        // Cuánto se llena la agenda: mucho lo pasado y lo cercano, poco lo lejano
+        const ocupacion = desplazamiento <= 0 ? 0.78 : Math.max(0.12, 0.72 - desplazamiento * 0.05);
+        for (const desde of horariosDeTurno(franjas, p.duracionTurnoMin)) {
+          if (r() > ocupacion) continue;
+          const hasta = sumarMinutos(desde, p.duracionTurnoMin);
+          let paciente: number | undefined;
+          for (let intento = 0; intento < 6 && paciente === undefined; intento++) {
+            const candidato = pacientes[Math.floor(r() * pacientes.length)]!;
+            if (conTurno.has(`${candidato}|${fecha}`)) continue;
+            paciente = candidato;
+            conTurno.add(`${candidato}|${fecha}`);
+          }
+          if (paciente === undefined) continue;
+
+          const x = r();
+          let estado: EstadoTurno;
+          if (fecha < hoy || (fecha === hoy && aMinutos(hasta) <= minutoActual)) estado = x < 0.08 ? 'cancelado' : x < 0.2 ? 'ausente' : 'atendido';
+          else if (fecha === hoy && aMinutos(desde) <= minutoActual) estado = 'en_sala';
+          else if (desplazamiento <= 1) estado = x < 0.05 ? 'cancelado' : x < 0.6 ? 'confirmado' : 'reservado';
+          else estado = x < 0.05 ? 'cancelado' : 'reservado';
+
+          // Llegada: entre 15 minutos antes y 5 después del turno
+          let llegada = Math.max(0, aMinutos(desde) - 15 + Math.floor(r() * 20));
+          if (fecha === hoy) llegada = Math.min(llegada, minutoActual); // no puede haber llegado "en el futuro"
+          const llegoEn = estado === 'atendido' || estado === 'en_sala' ? `${fecha} ${sumarMinutos('00:00', llegada)}:00` : null;
+          const creado = new Date(dia.getFullYear(), dia.getMonth(), dia.getDate() - 1 - Math.floor(r() * 10), 10);
+          insertar.run(p.id, paciente, fecha, desde, hasta, estado, MOTIVOS[Math.floor(r() * MOTIVOS.length)]!, llegoEn, `${fechaLocal(creado)} 10:00:00`);
+          creados++;
+        }
+      }
+    }
+  })();
+  return creados;
 }

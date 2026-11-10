@@ -28,5 +28,6 @@ export function guardarConsultorio(db: BaseDeDatos, datos: z.output<typeof esque
 /** Cuántos hay de cada cosa (activos). */
 export function resumen(db: Lector): Resumen {
   const n = (tabla: string) => (db.$client.prepare(`SELECT count(*) AS n FROM ${tabla} WHERE activo = 1`).get() as { n: number }).n;
-  return { pacientes: n('pacientes'), profesionales: n('profesionales'), obrasSociales: n('obras_sociales') };
+  const turnos = (db.$client.prepare('SELECT count(*) AS n FROM turnos').get() as { n: number }).n;
+  return { pacientes: n('pacientes'), profesionales: n('profesionales'), obrasSociales: n('obras_sociales'), turnos };
 }

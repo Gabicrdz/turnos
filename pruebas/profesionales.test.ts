@@ -55,7 +55,7 @@ describe('días sin atención', () => {
     const hoy = new Date(2026, 10, 10, 9);
     crearBloqueo(db, esquemaBloqueo.parse({ profesionalId: null, desde: '2026-11-20', hasta: '2026-11-20', motivo: 'Feriado' }));
     crearBloqueo(db, esquemaBloqueo.parse({ profesionalId: laura, desde: '2026-11-10', hasta: '2026-11-14', motivo: 'Congreso' }));
-    const viejo = crearBloqueo(db, esquemaBloqueo.parse({ profesionalId: laura, desde: '2026-10-01', hasta: '2026-10-05' }));
+    const viejo = crearBloqueo(db, esquemaBloqueo.parse({ profesionalId: laura, desde: '2026-10-01', hasta: '2026-10-05' })).id;
     expect(bloqueosProximos(db, hoy).map((b) => [b.quien, b.desde, b.motivo])).toEqual([
       ['Dra. Laura Benítez', '2026-11-10', 'Congreso'],
       ['Todo el consultorio', '2026-11-20', 'Feriado'],
