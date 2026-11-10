@@ -2,7 +2,7 @@
 // Ajustes y la fecha de hoy abajo.
 import { NavLink } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
-import { CalendarDays, Settings, Stethoscope, UsersRound, type LucideIcon } from 'lucide-react';
+import { CalendarDays, ConciergeBell, Settings, Stethoscope, UsersRound, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { desenvolver, turnos } from '@/lib/api';
 import { fechaLarga } from '@/lib/fechas';
@@ -14,6 +14,7 @@ export function useConsultorio() {
 
 const SECCIONES: { ruta: string; nombre: string; icono: LucideIcon }[] = [
   { ruta: '/', nombre: 'Agenda', icono: CalendarDays },
+  { ruta: '/recepcion', nombre: 'Recepción', icono: ConciergeBell },
   { ruta: '/pacientes', nombre: 'Pacientes', icono: UsersRound },
   { ruta: '/profesionales', nombre: 'Profesionales', icono: Stethoscope },
 ];

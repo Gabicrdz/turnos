@@ -9,6 +9,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { Estructura } from '@/components/layout/estructura';
 import { PaginaAgenda } from '@/features/agenda/pagina-agenda';
 import { PaginaPacientes } from '@/features/pacientes/pagina-pacientes';
+import { PaginaRecepcion } from '@/features/recepcion/pagina-recepcion';
 import { PaginaProfesionales } from '@/features/profesionales/pagina-profesionales';
 import { PaginaAjustes } from '@/features/ajustes/pagina-ajustes';
 import './index.css';
@@ -20,6 +21,7 @@ const router = createHashRouter([
     element: <Estructura />,
     children: [
       { index: true, element: <PaginaAgenda /> },
+      { path: 'recepcion', element: <PaginaRecepcion /> },
       { path: 'pacientes', element: <PaginaPacientes /> },
       { path: 'profesionales', element: <PaginaProfesionales /> },
       { path: 'ajustes', element: <PaginaAjustes /> },

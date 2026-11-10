@@ -13,6 +13,7 @@ export function obtenerConsultorio(db: Lector): Consultorio {
     nombreConsultorio: valores.get('nombre_consultorio') ?? 'Mi Consultorio',
     direccion: valores.get('direccion') ?? '',
     telefono: valores.get('telefono') ?? '',
+    mensajeRecordatorio: valores.get('mensaje_recordatorio') ?? '',
   };
 }
 
@@ -23,6 +24,12 @@ export function guardarConsultorio(db: BaseDeDatos, datos: z.output<typeof esque
     guardar.run('direccion', datos.direccion);
     guardar.run('telefono', datos.telefono);
   })();
+}
+
+export function guardarMensajeRecordatorio(db: BaseDeDatos, mensaje: string): void {
+  db.$client
+    .prepare("INSERT INTO configuracion (clave, valor) VALUES ('mensaje_recordatorio', ?) ON CONFLICT (clave) DO UPDATE SET valor = excluded.valor")
+    .run(mensaje);
 }
 
 /** Cuántos hay de cada cosa (activos). */

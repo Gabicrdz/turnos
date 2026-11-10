@@ -3,6 +3,8 @@
 import type {
   DatosBloqueo,
   DatosBuscarPacientes,
+  DatosCobro,
+  DatosConsulta,
   DatosConsultorio,
   DatosMoverTurno,
   DatosObraSocial,
@@ -16,6 +18,7 @@ import type {
   Agenda,
   Bloqueo,
   BloqueoCreado,
+  Consulta,
   Consultorio,
   HorarioLibre,
   InfoSistema,
@@ -55,6 +58,18 @@ export interface ApiTurnos {
     mover(datos: DatosMoverTurno): Promise<Respuesta<null>>;
     cambiarEstado(id: number, estado: EstadoTurno): Promise<Respuesta<null>>;
     dePaciente(pacienteId: number): Promise<Respuesta<TurnosDePaciente>>;
+    /** Abre WhatsApp con el recordatorio ya escrito y anota que se mandó. */
+    recordar(id: number): Promise<Respuesta<null>>;
+  };
+  consultas: {
+    /** Historia clínica del paciente, de la más nueva a la más vieja. */
+    historia(pacienteId: number): Promise<Respuesta<Consulta[]>>;
+    /** Guarda las notas de la consulta y deja el turno como atendido. */
+    guardar(datos: DatosConsulta): Promise<Respuesta<number>>;
+  };
+  cobros: {
+    registrar(datos: DatosCobro): Promise<Respuesta<number>>;
+    anular(id: number): Promise<Respuesta<null>>;
   };
   obrasSociales: {
     listar(): Promise<Respuesta<ObraSocial[]>>;
@@ -64,6 +79,7 @@ export interface ApiTurnos {
   consultorio: {
     obtener(): Promise<Respuesta<Consultorio>>;
     guardar(datos: DatosConsultorio): Promise<Respuesta<null>>;
+    guardarMensaje(mensaje: string): Promise<Respuesta<null>>;
   };
   sistema: {
     info(): Promise<Respuesta<InfoSistema>>;
@@ -92,11 +108,17 @@ export const CANALES = {
   turnosMover: 'turnos:mover',
   turnosEstado: 'turnos:estado',
   turnosDePaciente: 'turnos:de-paciente',
+  turnosRecordar: 'turnos:recordar',
+  consultasHistoria: 'consultas:historia',
+  consultasGuardar: 'consultas:guardar',
+  cobrosRegistrar: 'cobros:registrar',
+  cobrosAnular: 'cobros:anular',
   obrasListar: 'obras:listar',
   obrasGuardar: 'obras:guardar',
   obrasActivo: 'obras:activo',
   consultorioObtener: 'consultorio:obtener',
   consultorioGuardar: 'consultorio:guardar',
+  consultorioMensaje: 'consultorio:mensaje',
   sistemaInfo: 'sistema:info',
   sistemaResumen: 'sistema:resumen',
   sistemaEjemplo: 'sistema:ejemplo',

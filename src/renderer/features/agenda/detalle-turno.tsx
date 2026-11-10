@@ -1,8 +1,11 @@
 // Al tocar un turno: los datos del paciente y los botones para cambiar el
 // estado (solo los que permite la máquina de estados para ese día).
 import { useState } from 'react';
-import { CalendarClock } from 'lucide-react';
-import { estadosPosibles, sePuedeReprogramar, type EstadoTurno } from '@compartido/agenda';
+import { CalendarClock, MessageCircle, NotebookPen, Wallet } from 'lucide-react';
+import { estadosPermitidos, sePuedeReprogramar, type EstadoTurno } from '@compartido/agenda';
+import { NOMBRE_METODO } from '@compartido/esquemas';
+import { pesos } from '@compartido/dinero';
+import { numeroWhatsApp } from '@compartido/whatsapp';
 import type { Profesional, Turno } from '@compartido/tipos';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -10,7 +13,7 @@ import { fechaLarga } from '@/lib/fechas';
 import { Confirmar } from '@/features/comun/confirmar';
 import { dniConPuntos } from '@/features/comun/encabezado';
 import { COLOR, nombreCompleto } from '@/features/profesionales/colores';
-import { useCambiarEstado } from './consultas-agenda';
+import { useCambiarEstado, useRecordar } from './consultas-agenda';
 import { ChipEstado, esAvance, etiquetaAccion } from './estado';
 
 interface Props {
@@ -18,24 +21,36 @@ interface Props {
   profesional: Profesional | undefined;
   hoy: string;
   alCerrar: () => void;
-  alReprogramar: (turno: Turno) => void;
+  alConsulta: (turno: Turno) => void;
+  alCobrar: (turno: Turno) => void;
+  /** Si no viene, no se muestra "Reprogramar". */
+  alReprogramar?: (turno: Turno) => void;
 }
 
-export function DetalleTurno({ turno, profesional, hoy, alCerrar, alReprogramar }: Props) {
+/** "Recordatorio enviado el 10/11 a las 07:40" */
+const cuando = (momento: string) => `el ${momento.slice(8, 10)}/${momento.slice(5, 7)} a las ${momento.slice(11, 16)}`;
+
+export function DetalleTurno({ turno, profesional, hoy, alCerrar, alConsulta, alCobrar, alReprogramar }: Props) {
   const estado = useCambiarEstado();
+  const whatsapp = useRecordar();
   const [cancelar, setCancelar] = useState(false);
   if (!turno) return null;
 
-  const posibles = estadosPosibles(turno.estado, turno.fecha, hoy);
+  const posibles = estadosPermitidos(turno, hoy);
   // Un solo botón principal: el paso más probable (que llegó, que lo atendieron, confirmar…)
   const principal = posibles.find((e) => e === 'en_sala' && turno.estado !== 'atendido') ?? posibles.find((e) => esAvance(turno.estado, e));
   const botones = [principal, ...posibles.filter((e) => e !== principal && e !== 'cancelado')].filter((e): e is EstadoTurno => Boolean(e));
   const cambiar = (e: EstadoTurno) => estado.cambiar(turno.id, e, { onSuccess: alCerrar });
   const color = profesional ? COLOR[profesional.color] : null;
+  const pendiente = turno.estado === 'reservado' || turno.estado === 'confirmado';
+  const llego = turno.estado === 'en_sala' || turno.estado === 'atendido';
+  const puedeConsulta = llego || (pendiente && turno.fecha <= hoy);
+  const puedeRecordar = pendiente && turno.fecha >= hoy;
+  const celular = numeroWhatsApp(turno.telefono);
 
   return (
     <Dialog open onOpenChange={(a) => !a && alCerrar()}>
-      <DialogContent className="max-w-[560px]">
+      <DialogContent className="max-w-[600px]">
         <DialogHeader>
           <div className="flex flex-wrap items-center gap-2">
             <DialogTitle>{turno.paciente}</DialogTitle>
@@ -69,6 +84,38 @@ export function DetalleTurno({ turno, profesional, hoy, alCerrar, alReprogramar 
           </dl>
           {!turno.pacienteActivo && <p className="rounded-md bg-ambar-suave px-3 py-2 text-[14px] text-ambar">Este paciente está dado de baja.</p>}
 
+          {(puedeConsulta || llego || puedeRecordar) && (
+            <div className="flex flex-wrap gap-2">
+              {puedeConsulta && (
+                <Button variant="outline" size="sm" onClick={() => alConsulta(turno)}>
+                  <NotebookPen aria-hidden="true" />
+                  {turno.consultaId ? 'Ver notas de la consulta' : 'Notas de la consulta'}
+                </Button>
+              )}
+              {llego && (
+                <Button variant="outline" size="sm" onClick={() => alCobrar(turno)}>
+                  <Wallet aria-hidden="true" />
+                  {turno.cobro
+                    ? `Cobrado: ${turno.cobro.tipo === 'obra_social' ? turno.cobro.obraSocial : pesos(turno.cobro.montoCentavos)}${turno.cobro.metodo && turno.cobro.tipo === 'particular' ? ` (${NOMBRE_METODO[turno.cobro.metodo].toLowerCase()})` : ''}`
+                    : 'Cobrar'}
+                </Button>
+              )}
+              {puedeRecordar && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!celular || whatsapp.isPending}
+                  title={celular ? undefined : 'El teléfono no parece un celular con código de área'}
+                  onClick={() => whatsapp.recordar(turno.id)}
+                >
+                  <MessageCircle aria-hidden="true" />
+                  {celular ? (turno.recordadoEn ? 'Recordar otra vez' : 'Recordar por WhatsApp') : 'Sin celular para WhatsApp'}
+                </Button>
+              )}
+            </div>
+          )}
+          {puedeRecordar && turno.recordadoEn && <p className="-mt-3 text-[13px] text-tinta-suave">Recordatorio enviado {cuando(turno.recordadoEn)}.</p>}
+
           {botones.length > 0 && (
             <div className="flex flex-col gap-2 border-t border-linea pt-4">
               <p className="text-[13px] font-semibold tracking-wide text-tinta-suave uppercase">Cambiar estado</p>
@@ -91,7 +138,7 @@ export function DetalleTurno({ turno, profesional, hoy, alCerrar, alReprogramar 
             )}
           </div>
           <div className="flex gap-2">
-            {sePuedeReprogramar(turno.estado) && turno.fecha >= hoy && (
+            {alReprogramar && sePuedeReprogramar(turno.estado) && turno.fecha >= hoy && (
               <Button variant="outline" onClick={() => alReprogramar(turno)}>
                 <CalendarClock aria-hidden="true" />
                 Reprogramar

@@ -8,7 +8,7 @@ import type { z } from 'zod';
 import type { BaseDeDatos } from '../db/conexion';
 import type { esquemaMoverTurno, esquemaRango, esquemaTurno } from '@compartido/esquemas';
 import { NOMBRE_DIA } from '@compartido/esquemas';
-import type { Agenda, ColorProfesional, HorarioLibre, Turno, TurnoDePaciente, TurnosDePaciente } from '@compartido/tipos';
+import type { Agenda, CobroDeTurno, ColorProfesional, HorarioLibre, Turno, TurnoDePaciente, TurnosDePaciente } from '@compartido/tipos';
 import {
   NOMBRE_ESTADO,
   dentroDeLasFranjas,
@@ -28,15 +28,37 @@ type Lector = Pick<BaseDeDatos, '$client'>;
 
 const SELECT_TURNO = /* sql */ `
   SELECT t.id, t.profesional_id AS profesionalId, t.paciente_id AS pacienteId, t.fecha, t.desde, t.hasta,
-         t.estado, t.motivo, t.llego_en AS llegoEn,
-         p.apellido || ', ' || p.nombre AS paciente, p.dni, p.telefono, o.nombre AS obraSocial,
-         p.numero_afiliado AS numeroAfiliado, p.activo AS pacienteActivo
+         t.estado, t.motivo, t.llego_en AS llegoEn, t.recordado_en AS recordadoEn,
+         p.apellido || ', ' || p.nombre AS paciente, p.dni, p.telefono, p.obra_social_id AS obraSocialId, o.nombre AS obraSocial,
+         p.numero_afiliado AS numeroAfiliado, p.fecha_nacimiento AS fechaNacimiento, p.notas AS notasPaciente,
+         p.activo AS pacienteActivo,
+         c.id AS cobroId, c.tipo AS cobroTipo, oc.nombre AS cobroObraSocial, c.numero_autorizacion AS cobroAutorizacion,
+         c.monto_centavos AS cobroMonto, c.metodo AS cobroMetodo,
+         co.id AS consultaId
   FROM turnos t
   JOIN pacientes p ON p.id = t.paciente_id
-  LEFT JOIN obras_sociales o ON o.id = p.obra_social_id`;
+  LEFT JOIN obras_sociales o ON o.id = p.obra_social_id
+  LEFT JOIN cobros c ON c.turno_id = t.id AND c.anulado = 0
+  LEFT JOIN obras_sociales oc ON oc.id = c.obra_social_id
+  LEFT JOIN consultas co ON co.turno_id = t.id`;
 
-type FilaTurno = Omit<Turno, 'pacienteActivo'> & { pacienteActivo: number };
-const aTurno = (f: FilaTurno): Turno => ({ ...f, pacienteActivo: f.pacienteActivo === 1 });
+type FilaTurno = Omit<Turno, 'pacienteActivo' | 'cobro'> & {
+  pacienteActivo: number;
+  cobroId: number | null;
+  cobroTipo: CobroDeTurno['tipo'] | null;
+  cobroObraSocial: string | null;
+  cobroAutorizacion: string | null;
+  cobroMonto: number | null;
+  cobroMetodo: CobroDeTurno['metodo'];
+};
+const aTurno = ({ cobroId, cobroTipo, cobroObraSocial, cobroAutorizacion, cobroMonto, cobroMetodo, ...f }: FilaTurno): Turno => ({
+  ...f,
+  pacienteActivo: f.pacienteActivo === 1,
+  cobro:
+    cobroId === null
+      ? null
+      : { id: cobroId, tipo: cobroTipo!, obraSocial: cobroObraSocial, numeroAutorizacion: cobroAutorizacion ?? '', montoCentavos: cobroMonto ?? 0, metodo: cobroMetodo },
+});
 
 /** Todos los turnos (también los cancelados) y los días sin atención de un rango. */
 export function agenda(db: Lector, rango: z.output<typeof esquemaRango>): Agenda {
@@ -206,6 +228,13 @@ export function cambiarEstado(db: BaseDeDatos, id: number, estado: EstadoTurno, 
     }
     if (turno.estado === 'cancelado') throw new ErrorDeUsuario('Ese turno cancelado es de un día que ya pasó: no se puede reactivar.');
     throw new ErrorDeUsuario(`Un turno ${NOMBRE_ESTADO[turno.estado].toLowerCase()} no puede pasar a ${NOMBRE_ESTADO[estado].toLowerCase()}.`);
+  }
+  // Lo que ya quedó registrado no se deshace cambiando el estado
+  if (turno.estado === 'atendido' && turno.consultaId !== null) {
+    throw new ErrorDeUsuario('Ese turno ya tiene las notas de la consulta: no puede volver atrás.');
+  }
+  if (turno.cobro && estado !== 'en_sala' && estado !== 'atendido') {
+    throw new ErrorDeUsuario('Ese turno ya está cobrado: para cambiarlo, primero anulá el cobro.');
   }
   // Reactivar un cancelado es volver a ocupar el horario: mismas reglas que darlo
   if (turno.estado === 'cancelado') validarHorario(db, turno, turno.id, ahora);

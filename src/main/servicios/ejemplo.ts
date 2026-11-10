@@ -23,16 +23,19 @@ const PROFESIONALES = [
   {
     titulo: 'Dra.', nombre: 'Laura', apellido: 'Benítez', especialidad: 'Clínica médica', matricula: 'MP 4521', color: 'eucalipto' as const,
     duracionTurnoMin: 20,
+    precioConsultaCentavos: 1_800_000,
     horarios: [...dias([1, 2, 3, 4, 5], '08:00', '12:00'), ...dias([1, 3, 5], '16:00', '20:00')],
   },
   {
     titulo: 'Dr.', nombre: 'Martín', apellido: 'Acosta', especialidad: 'Pediatría', matricula: 'MP 3877', color: 'ciruela' as const,
     duracionTurnoMin: 30,
+    precioConsultaCentavos: 2_000_000,
     horarios: [...dias([2, 4], '09:00', '13:00'), ...dias([2, 4], '17:00', '20:00'), ...dias([6], '09:00', '12:00')],
   },
   {
     titulo: 'Lic.', nombre: 'Sofía', apellido: 'Ríos', especialidad: 'Nutrición', matricula: 'MP 1290', color: 'ocre' as const,
     duracionTurnoMin: 40,
+    precioConsultaCentavos: 1_500_000,
     horarios: dias([1, 3], '15:00', '19:00'),
   },
 ];
@@ -106,7 +109,26 @@ function azar(semilla: number) {
   };
 }
 
-const MOTIVOS = ['Control', 'Control', 'Control', 'Primera vez', 'Resultados de estudios', 'Certificado', '', '', ''];
+// Notas de consulta de ejemplo según la especialidad (texto de muestra, no son indicaciones reales)
+type Nota = [motivo: string, evolucion: string, diagnostico: string, indicaciones: string];
+const NOTAS: Record<string, Nota[]> = {
+  'Clínica médica': [
+    ['Control', 'Asintomático. Tensión arterial 120/80. Examen físico sin particularidades.', 'Control de salud', 'Laboratorio de rutina. Control en 6 meses.'],
+    ['Cuadro gripal', 'Fiebre de 2 días, dolor de garganta y de cuerpo. Fauces congestivas, pulmones limpios.', 'Síndrome gripal', 'Reposo 48 horas e hidratación. Volver si la fiebre sigue más de 3 días.'],
+    ['Resultados de estudios', 'Trae laboratorio: glucemia normal, colesterol total levemente elevado.', 'Colesterol elevado', 'Alimentación baja en grasas y actividad física. Repetir en 3 meses.'],
+    ['Certificado', 'Apto para actividad física. Examen cardiovascular normal.', 'Apto físico', 'Se entrega certificado.'],
+  ],
+  Pediatría: [
+    ['Control niño sano', 'Peso y talla en percentil 50. Desarrollo acorde a la edad.', 'Niño sano', 'Control en 6 meses. Calendario de vacunas al día.'],
+    ['Tos y mocos', 'Tos de 4 días sin fiebre. Buen estado general, auscultación normal.', 'Resfrío común', 'Lavados nasales y abundante líquido. Consultar si aparece fiebre o dificultad para respirar.'],
+    ['Vacunas', 'Se revisa el carnet de vacunación: faltan las del ingreso escolar.', 'Control de vacunas', 'Aplicar las vacunas pendientes en el vacunatorio.'],
+  ],
+  Nutrición: [
+    ['Primera vez', 'Consulta para bajar de peso. Se toman medidas y se registran hábitos.', 'Sobrepeso', 'Plan alimentario con 4 comidas. Registrar lo que come durante una semana.'],
+    ['Control de peso', 'Bajó 1,8 kg desde la consulta anterior. Buena adherencia al plan.', 'Seguimiento', 'Mantener el plan y sumar 3 caminatas por semana. Control en 15 días.'],
+  ],
+};
+const METODOS_EJEMPLO = ['efectivo', 'efectivo', 'transferencia', 'transferencia', 'debito'] as const;
 
 /**
  * Turnos de ejemplo: de 14 días atrás a 14 días adelante. Los pasados quedan
@@ -118,7 +140,16 @@ export function cargarTurnosEjemplo(db: BaseDeDatos, ahora: Date = new Date()): 
   if ((db.$client.prepare('SELECT count(*) AS n FROM turnos').get() as { n: number }).n > 0) {
     throw new ErrorDeUsuario('Ya hay turnos cargados: los turnos de ejemplo son solo para una agenda vacía.');
   }
-  const pacientes = (db.$client.prepare('SELECT id FROM pacientes WHERE activo = 1 ORDER BY id').all() as { id: number }[]).map((p) => p.id);
+  const filasPacientes = db.$client.prepare('SELECT id, obra_social_id AS os FROM pacientes WHERE activo = 1 ORDER BY id').all() as { id: number; os: number | null }[];
+  const pacientes = filasPacientes.map((p) => p.id);
+  const obraSocialDe = new Map(filasPacientes.map((p) => [p.id, p.os]));
+  const consulta = db.$client.prepare(
+    `INSERT INTO consultas (turno_id, paciente_id, profesional_id, fecha, motivo, evolucion, diagnostico, indicaciones, creado_en, actualizado_en)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  );
+  const cobro = db.$client.prepare(
+    'INSERT INTO cobros (turno_id, tipo, obra_social_id, numero_autorizacion, monto_centavos, metodo, creado_en) VALUES (?, ?, ?, ?, ?, ?, ?)',
+  );
   const profesionales = listarProfesionales(db).filter((p) => p.activo && p.horarios.length);
   if (!pacientes.length || !profesionales.length) throw new ErrorDeUsuario('Primero cargá profesionales con horario y pacientes.');
 
@@ -165,8 +196,25 @@ export function cargarTurnosEjemplo(db: BaseDeDatos, ahora: Date = new Date()): 
           if (fecha === hoy) llegada = Math.min(llegada, minutoActual); // no puede haber llegado "en el futuro"
           const llegoEn = estado === 'atendido' || estado === 'en_sala' ? `${fecha} ${sumarMinutos('00:00', llegada)}:00` : null;
           const creado = new Date(dia.getFullYear(), dia.getMonth(), dia.getDate() - 1 - Math.floor(r() * 10), 10);
-          insertar.run(p.id, paciente, fecha, desde, hasta, estado, MOTIVOS[Math.floor(r() * MOTIVOS.length)]!, llegoEn, `${fechaLocal(creado)} 10:00:00`);
+          const notas = NOTAS[p.especialidad] ?? NOTAS['Clínica médica']!;
+          const nota = notas[Math.floor(r() * notas.length)]!;
+          const turnoId = Number(insertar.run(p.id, paciente, fecha, desde, hasta, estado, nota[0], llegoEn, `${fechaLocal(creado)} 10:00:00`).lastInsertRowid);
           creados++;
+
+          // Atendidos: con sus notas (cargadas al terminar el turno) y casi siempre cobrados.
+          // Hoy quedan algunos sin cobrar, y a algunos en sala ya se les cobró al llegar.
+          const momento = `${fecha} ${hasta}:00`;
+          if (estado === 'atendido') consulta.run(turnoId, paciente, p.id, fecha, nota[0], nota[1], nota[2], nota[3], momento, momento);
+          const cobrar = (estado === 'atendido' && (fecha < hoy || r() < 0.55)) || (estado === 'en_sala' && r() < 0.35);
+          if (cobrar) {
+            const os = obraSocialDe.get(paciente) ?? null;
+            const metodo = METODOS_EJEMPLO[Math.floor(r() * METODOS_EJEMPLO.length)]!;
+            if (os === null) cobro.run(turnoId, 'particular', null, '', p.precioConsultaCentavos || 1_500_000, metodo, momento);
+            else {
+              const copago = r() < 0.3 ? 300_000 : 0; // a veces cobran un plus
+              cobro.run(turnoId, 'obra_social', os, String(10_000_000 + Math.floor(r() * 89_999_999)), copago, copago ? metodo : null, momento);
+            }
+          }
         }
       }
     }

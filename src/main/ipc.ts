@@ -1,15 +1,18 @@
 // Conecta los pedidos de la ventana (ipcRenderer.invoke) con los servicios.
 // Cada canal valida lo que llega con Zod ANTES de tocar la base de datos:
 // nunca confiamos en lo que manda la ventana.
-import { ipcMain } from 'electron';
+import { ipcMain, shell } from 'electron';
 import { z, type ZodType } from 'zod';
 import { CANALES } from '@compartido/api';
 import {
   esquemaBloqueo,
   esquemaBuscarPacientes,
+  esquemaCobro,
+  esquemaConsulta,
   esquemaConsultorio,
   esquemaEstado,
   esquemaFecha,
+  esquemaMensajeRecordatorio,
   esquemaMoverTurno,
   esquemaObraSocial,
   esquemaPaciente,
@@ -25,7 +28,10 @@ import { buscarPacientes, cambiarActivoPaciente, guardarPaciente } from './servi
 import { cambiarActivoProfesional, guardarProfesional, listarProfesionales } from './servicios/profesionales';
 import { bloqueosProximos, borrarBloqueo, crearBloqueo } from './servicios/bloqueos';
 import { cambiarActivoObraSocial, guardarObraSocial, listarObrasSociales } from './servicios/obras-sociales';
-import { guardarConsultorio, obtenerConsultorio, resumen } from './servicios/consultorio';
+import { guardarConsultorio, guardarMensajeRecordatorio, obtenerConsultorio, resumen } from './servicios/consultorio';
+import { guardarConsulta, historiaClinica } from './servicios/consultas';
+import { anularCobro, registrarCobro } from './servicios/cobros';
+import { enlaceRecordatorio, marcarRecordado } from './servicios/recordatorios';
 import { cargarEjemplo, cargarTurnosEjemplo } from './servicios/ejemplo';
 import { agenda, cambiarEstado, darTurno, horariosLibres, moverTurno, proximosLibres, turnosDePaciente } from './servicios/turnos';
 
@@ -94,6 +100,21 @@ export function registrarCanales(info: () => InfoSistema): void {
     return null;
   });
   manejar(CANALES.turnosDePaciente, z.tuple([id]), (pid) => turnosDePaciente(db(), pid));
+  manejar(CANALES.turnosRecordar, z.tuple([id]), async (tid) => {
+    // El enlace lo arma el main con datos de la base; se abre con el navegador o WhatsApp de la compu
+    await shell.openExternal(enlaceRecordatorio(db(), tid));
+    marcarRecordado(db(), tid);
+    return null;
+  });
+
+  // ── Consultas y cobros ──
+  manejar(CANALES.consultasHistoria, z.tuple([id]), (pid) => historiaClinica(db(), pid));
+  manejar(CANALES.consultasGuardar, z.tuple([esquemaConsulta]), (datos) => guardarConsulta(db(), datos));
+  manejar(CANALES.cobrosRegistrar, z.tuple([esquemaCobro]), (datos) => registrarCobro(db(), datos));
+  manejar(CANALES.cobrosAnular, z.tuple([id]), (cid) => {
+    anularCobro(db(), cid);
+    return null;
+  });
 
   // ── Obras sociales ──
   manejar(CANALES.obrasListar, nada, () => listarObrasSociales(db()));
@@ -107,6 +128,10 @@ export function registrarCanales(info: () => InfoSistema): void {
   manejar(CANALES.consultorioObtener, nada, () => obtenerConsultorio(db()));
   manejar(CANALES.consultorioGuardar, z.tuple([esquemaConsultorio]), (datos) => {
     guardarConsultorio(db(), datos);
+    return null;
+  });
+  manejar(CANALES.consultorioMensaje, z.tuple([esquemaMensajeRecordatorio]), (mensaje) => {
+    guardarMensajeRecordatorio(db(), mensaje);
     return null;
   });
   manejar(CANALES.sistemaInfo, nada, info);

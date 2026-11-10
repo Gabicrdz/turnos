@@ -16,6 +16,7 @@ export const CLAVES = {
   agenda: ['agenda'],
   libres: ['libres'],
   turnosPaciente: ['turnos-paciente'],
+  historia: ['historia'],
   resumen: ['resumen'],
 } as const;
 

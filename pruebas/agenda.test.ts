@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dentroDeLasFranjas, espaciosLibres, estadosPosibles, rangoVisible, seSuperponen, sumarMinutos } from '../src/compartido/agenda';
+import { dentroDeLasFranjas, espaciosLibres, estadosPermitidos, estadosPosibles, rangoVisible, seSuperponen, sumarMinutos } from '../src/compartido/agenda';
 
 describe('reglas de la agenda (funciones puras)', () => {
   it('dos turnos se pisan solo si se cruzan de verdad', () => {
@@ -23,6 +23,9 @@ describe('reglas de la agenda (funciones puras)', () => {
     expect(estadosPosibles('reservado', '2026-11-16', '2026-11-16')).toEqual(['confirmado', 'en_sala', 'atendido', 'ausente', 'cancelado']);
     expect(estadosPosibles('en_sala', '2026-11-16', '2026-11-16')).toEqual(['atendido', 'confirmado']);
     expect(estadosPosibles('cancelado', '2026-11-15', '2026-11-16')).toEqual([]);
+    // Con lo ya registrado: notas → no vuelve atrás; cobrado → no vuelve a pendiente
+    expect(estadosPermitidos({ estado: 'atendido', fecha: '2026-11-16', consultaId: 3, cobro: null }, '2026-11-16')).toEqual([]);
+    expect(estadosPermitidos({ estado: 'en_sala', fecha: '2026-11-16', consultaId: null, cobro: {} }, '2026-11-16')).toEqual(['atendido']);
   });
 
   it('la grilla va de hora en punto a hora en punto', () => {

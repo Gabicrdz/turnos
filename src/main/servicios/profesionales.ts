@@ -14,7 +14,7 @@ export function listarProfesionales(db: Lector): Profesional[] {
   const filas = db.$client
     .prepare(
       /* sql */ `SELECT id, titulo, nombre, apellido, especialidad, matricula, color,
-                        duracion_turno_min AS duracionTurnoMin, activo
+                        duracion_turno_min AS duracionTurnoMin, precio_consulta_centavos AS precioConsultaCentavos, activo
                  FROM profesionales ORDER BY activo DESC, apellido COLLATE NOCASE, nombre COLLATE NOCASE`,
     )
     .all() as (Omit<Profesional, 'activo' | 'horarios' | 'color'> & { activo: number; color: string })[];

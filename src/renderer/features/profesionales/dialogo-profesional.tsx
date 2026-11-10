@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
+import { leerPesos, pesosParaCampo } from '@compartido/dinero';
 import { DURACIONES, COLORES_PROFESIONAL, esquemaProfesional, type DatosProfesional } from '@compartido/esquemas';
 import { resumenDeHorario, turnosPorSemana, type Franja } from '@compartido/horarios';
 import type { ColorProfesional, Profesional } from '@compartido/tipos';
@@ -20,12 +21,14 @@ const VACIO: Formulario = { titulo: '', nombre: '', apellido: '', especialidad: 
 export function DialogoProfesional({ profesional, alCerrar }: { profesional: Profesional | 'nuevo' | null; alCerrar: () => void }) {
   const [f, setF] = useState<Formulario>(VACIO);
   const [error, setError] = useState('');
+  const [precio, setPrecio] = useState('');
   const existente = profesional && profesional !== 'nuevo' ? profesional : null;
 
   useEffect(() => {
     if (!profesional) return;
     setError('');
     setF(existente ? { ...existente } : VACIO);
+    setPrecio(existente?.precioConsultaCentavos ? pesosParaCampo(existente.precioConsultaCentavos) : '');
   }, [profesional, existente]);
 
   const guardar = useAccion((d: DatosProfesional) => desenvolver(turnos().profesionales.guardar(d)), [CLAVES.profesionales, CLAVES.bloqueos, CLAVES.libres], existente ? 'Cambios guardados' : 'Profesional agregado');
@@ -42,7 +45,9 @@ export function DialogoProfesional({ profesional, alCerrar }: { profesional: Pro
 
   function enviar(e: FormEvent) {
     e.preventDefault();
-    const r = esquemaProfesional.safeParse({ ...(existente ? { id: existente.id } : {}), ...f });
+    const precioCentavos = precio.trim() === '' ? 0 : leerPesos(precio);
+    if (precioCentavos === null) return setError('El precio de la consulta no es válido. Escribilo como 18.000.');
+    const r = esquemaProfesional.safeParse({ ...(existente ? { id: existente.id } : {}), ...f, precioConsultaCentavos: precioCentavos });
     if (!r.success) return setError(r.error.issues[0]?.message ?? 'Revisá los datos.');
     guardar.mutate(r.data, { onSuccess: alCerrar, onError: (e) => toast.error(e.message) });
   }
@@ -69,12 +74,28 @@ export function DialogoProfesional({ profesional, alCerrar }: { profesional: Pro
                 <Input id="pr-apellido" maxLength={40} value={f.apellido} onChange={(e) => poner('apellido', e.target.value)} />
               </Campo>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-[1.4fr_1fr_1fr] gap-4">
               <Campo etiqueta="Especialidad" htmlFor="pr-especialidad">
                 <Input id="pr-especialidad" maxLength={60} placeholder="Ej.: Clínica médica" value={f.especialidad} onChange={(e) => poner('especialidad', e.target.value)} />
               </Campo>
               <Campo etiqueta="Matrícula" htmlFor="pr-matricula">
                 <Input id="pr-matricula" maxLength={30} placeholder="Ej.: MP 4521" value={f.matricula} onChange={(e) => poner('matricula', e.target.value)} />
+              </Campo>
+              <Campo etiqueta="Consulta particular" htmlFor="pr-precio" ayuda="Se propone al cobrar.">
+                <div className="relative">
+                  <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-tinta-suave">$</span>
+                  <Input
+                    id="pr-precio"
+                    inputMode="decimal"
+                    className="numeros pl-7"
+                    placeholder="Ej.: 18.000"
+                    value={precio}
+                    onChange={(e) => {
+                      setPrecio(e.target.value);
+                      setError('');
+                    }}
+                  />
+                </div>
               </Campo>
             </div>
             <div className="grid grid-cols-[1fr_auto] gap-6">

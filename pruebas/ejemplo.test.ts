@@ -11,7 +11,8 @@ describe('datos de ejemplo', () => {
     expect(cargarEjemplo(db)).toMatchObject({ pacientes: 30, profesionales: 3, obrasSociales: 8 });
     expect(listarProfesionales(db).map((p) => p.horarios.length)).toEqual([5, 8, 2]); // Acosta, Benítez, Ríos
     expect(() => cargarEjemplo(db)).toThrow('Ya hay pacientes');
-    expect(obtenerConsultorio(db)).toEqual({ nombreConsultorio: 'Mi Consultorio', direccion: '', telefono: '' });
+    expect(obtenerConsultorio(db)).toMatchObject({ nombreConsultorio: 'Mi Consultorio', direccion: '', telefono: '' });
+    expect(obtenerConsultorio(db).mensajeRecordatorio).toContain('{profesional}');
   });
 
   it('no duplica profesionales si ya había', () => {
@@ -46,5 +47,10 @@ describe('datos de ejemplo', () => {
     // "En sala" solo el que está en curso ahora (10:05)
     expect(turnos.filter((t) => t.estado === 'en_sala' && !(t.fecha === '2026-11-16' && t.desde <= '10:05' && '10:05' < t.hasta))).toHaveLength(0);
     expect(() => cargarTurnosEjemplo(db, ahora)).toThrow('Ya hay turnos');
+    // Etapa 3: cada atendido tiene sus notas; los de días anteriores, también su cobro
+    const cuenta = (sql: string) => (db.$client.prepare(sql).get() as { n: number }).n;
+    expect(cuenta(`SELECT count(*) AS n FROM turnos t LEFT JOIN consultas c ON c.turno_id = t.id WHERE t.estado = 'atendido' AND c.id IS NULL`)).toBe(0);
+    expect(cuenta(`SELECT count(*) AS n FROM turnos t LEFT JOIN cobros c ON c.turno_id = t.id WHERE t.estado = 'atendido' AND t.fecha < '2026-11-16' AND c.id IS NULL`)).toBe(0);
+    expect(cuenta(`SELECT count(*) AS n FROM cobros c JOIN turnos t ON t.id = c.turno_id WHERE t.estado NOT IN ('atendido', 'en_sala')`)).toBe(0);
   });
 });

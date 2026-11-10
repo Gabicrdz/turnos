@@ -29,6 +29,15 @@ const api: ApiTurnos = {
     mover: (datos) => pedir(CANALES.turnosMover, datos),
     cambiarEstado: (id, estado) => pedir(CANALES.turnosEstado, id, estado),
     dePaciente: (pacienteId) => pedir(CANALES.turnosDePaciente, pacienteId),
+    recordar: (id) => pedir(CANALES.turnosRecordar, id),
+  },
+  consultas: {
+    historia: (pacienteId) => pedir(CANALES.consultasHistoria, pacienteId),
+    guardar: (datos) => pedir(CANALES.consultasGuardar, datos),
+  },
+  cobros: {
+    registrar: (datos) => pedir(CANALES.cobrosRegistrar, datos),
+    anular: (id) => pedir(CANALES.cobrosAnular, id),
   },
   obrasSociales: {
     listar: () => pedir(CANALES.obrasListar),
@@ -38,6 +47,7 @@ const api: ApiTurnos = {
   consultorio: {
     obtener: () => pedir(CANALES.consultorioObtener),
     guardar: (datos) => pedir(CANALES.consultorioGuardar, datos),
+    guardarMensaje: (mensaje) => pedir(CANALES.consultorioMensaje, mensaje),
   },
   sistema: {
     info: () => pedir(CANALES.sistemaInfo),

@@ -1,13 +1,15 @@
 // Ajustes: datos del consultorio y lista de obras sociales.
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Pencil, Plus } from 'lucide-react';
-import { esquemaConsultorio, esquemaObraSocial, type DatosConsultorio, type DatosObraSocial } from '@compartido/esquemas';
+import { NOMBRE_DIA, esquemaConsultorio, esquemaMensajeRecordatorio, esquemaObraSocial, type DatosConsultorio, type DatosObraSocial } from '@compartido/esquemas';
+import { MARCADORES, armarMensaje } from '@compartido/whatsapp';
 import type { ObraSocial } from '@compartido/tipos';
 import { Button } from '@/components/ui/button';
 import { Campo } from '@/components/ui/campo';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { desenvolver, turnos } from '@/lib/api';
@@ -19,8 +21,9 @@ export function PaginaAjustes() {
   const info = useQuery({ queryKey: ['sistema'], queryFn: () => desenvolver(turnos().sistema.info()) });
   return (
     <div className="mx-auto flex max-w-[980px] flex-col gap-8 px-10 pt-9 pb-12">
-      <Encabezado titulo="Ajustes" detalle="Datos del consultorio y obras sociales con las que se trabaja." />
+      <Encabezado titulo="Ajustes" detalle="Datos del consultorio, recordatorio por WhatsApp y obras sociales." />
       <TarjetaConsultorio />
+      <TarjetaRecordatorio />
       <TarjetaObrasSociales />
       {info.data && (
         <p className="text-center text-[13px] text-tinta-suave">
@@ -53,7 +56,7 @@ function TarjetaConsultorio() {
   return (
     <section className="rounded-lg border border-linea bg-superficie p-6">
       <h2 className="font-display text-xl font-semibold">Consultorio</h2>
-      <p className="text-[14px] text-tinta-suave">El nombre aparece arriba a la izquierda (y, más adelante, en los recordatorios por WhatsApp).</p>
+      <p className="text-[14px] text-tinta-suave">El nombre aparece arriba a la izquierda y en los recordatorios por WhatsApp.</p>
       <form onSubmit={enviar} noValidate className="mt-4 grid grid-cols-2 gap-4">
         <Campo etiqueta="Nombre del consultorio" htmlFor="c-nombre" className="col-span-2">
           <Input id="c-nombre" maxLength={50} value={f.nombreConsultorio} onChange={(e) => setF({ ...f, nombreConsultorio: e.target.value })} />
@@ -73,6 +76,88 @@ function TarjetaConsultorio() {
               {error}
             </p>
           )}
+        </div>
+      </form>
+    </section>
+  );
+}
+
+/** El texto del WhatsApp, con marcas que se reemplazan por los datos de cada turno. */
+function TarjetaRecordatorio() {
+  const consultorio = useConsultorio();
+  const [texto, setTexto] = useState('');
+  const [error, setError] = useState('');
+  const campo = useRef<HTMLTextAreaElement>(null);
+  const guardar = useAccion((m: string) => desenvolver(turnos().consultorio.guardarMensaje(m)), [CLAVES.consultorio], 'Mensaje del recordatorio guardado');
+  useEffect(() => {
+    if (consultorio.data) setTexto(consultorio.data.mensajeRecordatorio);
+  }, [consultorio.data]);
+
+  // Pone la marca donde está el cursor
+  function insertar(marca: string) {
+    const el = campo.current;
+    const inicio = el?.selectionStart ?? texto.length;
+    const fin = el?.selectionEnd ?? texto.length;
+    setTexto(texto.slice(0, inicio) + marca + texto.slice(fin));
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(inicio + marca.length, inicio + marca.length);
+    });
+  }
+
+  function enviar(e: FormEvent) {
+    e.preventDefault();
+    const r = esquemaMensajeRecordatorio.safeParse(texto);
+    if (!r.success) return setError(r.error.issues[0]?.message ?? 'Revisá el mensaje.');
+    setError('');
+    guardar.mutate(r.data, { onError: (err) => setError(err.message) });
+  }
+
+  const manana = new Date(Date.now() + 86_400_000);
+  const ejemplo = armarMensaje(texto, {
+    nombre: 'Juan',
+    apellido: 'Pérez',
+    profesional: 'Dra. Laura Benítez',
+    dia: `${NOMBRE_DIA[manana.getDay() === 0 ? 7 : manana.getDay()]} ${String(manana.getDate()).padStart(2, '0')}/${String(manana.getMonth() + 1).padStart(2, '0')}`,
+    hora: '08:20',
+    consultorio: consultorio.data?.nombreConsultorio ?? '',
+    direccion: consultorio.data?.direccion ?? '',
+  });
+
+  return (
+    <section className="rounded-lg border border-linea bg-superficie p-6">
+      <h2 className="font-display text-xl font-semibold">Recordatorio por WhatsApp</h2>
+      <p className="text-[14px] text-tinta-suave">El mensaje que se abre en WhatsApp desde Recepción. Tocá una marca para agregarla donde está el cursor.</p>
+      <form onSubmit={enviar} noValidate className="mt-4 grid grid-cols-2 gap-6">
+        <div className="flex flex-col gap-3">
+          <Textarea ref={campo} aria-label="Mensaje del recordatorio" rows={6} maxLength={600} value={texto} onChange={(e) => { setTexto(e.target.value); setError(''); }} />
+          <div className="flex flex-wrap gap-1.5">
+            {MARCADORES.map((m) => (
+              <button
+                key={m.marca}
+                type="button"
+                title={m.explicacion}
+                onClick={() => insertar(m.marca)}
+                className="rounded-full border border-linea-fuerte px-2.5 py-1 font-mono text-[12px] text-tinta-suave outline-none hover:bg-accent hover:text-tinta focus-visible:ring-2 focus-visible:ring-acento/50"
+              >
+                {m.marca}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-3">
+            <Button type="submit" disabled={guardar.isPending || texto === consultorio.data?.mensajeRecordatorio}>
+              Guardar mensaje
+            </Button>
+            {error && (
+              <p role="alert" className="text-sm font-semibold text-rojo">
+                {error}
+              </p>
+            )}
+          </div>
+        </div>
+        <div>
+          <p className="mb-2 text-sm font-medium">Así le llega al paciente</p>
+          <p className="rounded-lg rounded-tl-none bg-[#dcf8c6] px-4 py-3 text-[14px] leading-relaxed whitespace-pre-line text-[#111b21]">{ejemplo || ' '}</p>
         </div>
       </form>
     </section>

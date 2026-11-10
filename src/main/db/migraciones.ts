@@ -136,4 +136,52 @@ export const MIGRACIONES: Migracion[] = [
       END;
     `,
   },
+  {
+    nombre: 'Consultas (historia clínica), cobros, precio de consulta y recordatorios por WhatsApp',
+    sql: /* sql */ `
+      -- Columnas nuevas en tablas que ya tienen datos: ADD COLUMN con un valor por defecto
+      ALTER TABLE profesionales ADD COLUMN precio_consulta_centavos INTEGER NOT NULL DEFAULT 0
+        CHECK (precio_consulta_centavos >= 0);
+      ALTER TABLE turnos ADD COLUMN recordado_en TEXT;   -- cuándo se mandó el recordatorio
+
+      INSERT INTO configuracion (clave, valor) VALUES
+        ('mensaje_recordatorio',
+         'Hola {nombre}! Te recordamos tu turno con {profesional} el {dia} a las {hora} en {consultorio}. Por favor, respondé SÍ para confirmar o avisanos si no podés venir. ¡Gracias!');
+
+      -- Notas de la consulta (historia clínica simple): una por turno.
+      CREATE TABLE consultas (
+        id             INTEGER PRIMARY KEY,
+        turno_id       INTEGER NOT NULL UNIQUE REFERENCES turnos (id),
+        paciente_id    INTEGER NOT NULL REFERENCES pacientes (id),
+        profesional_id INTEGER NOT NULL REFERENCES profesionales (id),
+        fecha          TEXT    NOT NULL,                -- el día del turno
+        motivo         TEXT    NOT NULL DEFAULT '',
+        evolucion      TEXT    NOT NULL,                -- lo que se vio y se hizo
+        diagnostico    TEXT    NOT NULL DEFAULT '',
+        indicaciones   TEXT    NOT NULL DEFAULT '',
+        creado_en      TEXT    NOT NULL DEFAULT (datetime('now', 'localtime')),
+        actualizado_en TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+      );
+      CREATE INDEX consultas_por_paciente ON consultas (paciente_id, fecha);
+
+      -- Cobro de cada turno: particular (paga el paciente) u obra social
+      -- (orden o autorización, con copago opcional). Se ANULAN, no se borran.
+      CREATE TABLE cobros (
+        id                  INTEGER PRIMARY KEY,
+        turno_id            INTEGER NOT NULL REFERENCES turnos (id),
+        tipo                TEXT    NOT NULL CHECK (tipo IN ('particular', 'obra_social')),
+        obra_social_id      INTEGER REFERENCES obras_sociales (id),
+        numero_autorizacion TEXT    NOT NULL DEFAULT '',
+        monto_centavos      INTEGER NOT NULL DEFAULT 0 CHECK (monto_centavos >= 0),  -- lo que paga el paciente
+        metodo              TEXT    CHECK (metodo IN ('efectivo', 'transferencia', 'debito', 'credito')),
+        anulado             INTEGER NOT NULL DEFAULT 0 CHECK (anulado IN (0, 1)),
+        anulado_en          TEXT,
+        creado_en           TEXT    NOT NULL DEFAULT (datetime('now', 'localtime')),
+        CHECK (tipo = 'particular' OR obra_social_id IS NOT NULL),
+        CHECK (monto_centavos = 0 OR metodo IS NOT NULL)
+      );
+      -- Un solo cobro vigente por turno (los anulados no cuentan): índice único PARCIAL
+      CREATE UNIQUE INDEX cobros_uno_por_turno ON cobros (turno_id) WHERE anulado = 0;
+    `,
+  },
 ];

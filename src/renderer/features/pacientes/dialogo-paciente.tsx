@@ -2,7 +2,7 @@
 // que el main y muestra cada error debajo de su campo.
 import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router';
-import { CalendarPlus } from 'lucide-react';
+import { CalendarPlus, NotebookText } from 'lucide-react';
 import { toast } from 'sonner';
 import { esquemaPaciente, type DatosPaciente } from '@compartido/esquemas';
 import type { Paciente } from '@compartido/tipos';
@@ -17,6 +17,7 @@ import { edad, fechaISO } from '@/lib/fechas';
 import { CLAVES, useAccion, useObrasSociales } from '@/features/comun/consultas';
 import { dniConPuntos } from '@/features/comun/encabezado';
 import { TurnosDelPaciente } from '@/features/agenda/turnos-del-paciente';
+import { DialogoHistoria } from '@/features/consulta/historia';
 
 type Errores = Partial<Record<keyof DatosPaciente, string>>;
 
@@ -46,6 +47,7 @@ interface Props {
 
 export function DialogoPaciente({ paciente, alCerrar, sugerencia = '', alGuardar }: Props) {
   const navegar = useNavigate();
+  const [historia, setHistoria] = useState(false);
   const [f, setF] = useState(VACIO);
   const [errores, setErrores] = useState<Errores>({});
   const obras = useObrasSociales();
@@ -189,6 +191,11 @@ export function DialogoPaciente({ paciente, alCerrar, sugerencia = '', alGuardar
                   <h3 id="t-turnos-paciente" className="font-display text-lg font-semibold">
                     Turnos
                   </h3>
+                  <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setHistoria(true)}>
+                    <NotebookText aria-hidden="true" />
+                    Historia clínica
+                  </Button>
                   {existente.activo && (
                     <Button
                       size="sm"
@@ -202,8 +209,10 @@ export function DialogoPaciente({ paciente, alCerrar, sugerencia = '', alGuardar
                       Dar turno
                     </Button>
                   )}
+                  </div>
                 </div>
                 <TurnosDelPaciente pacienteId={existente.id} />
+                <DialogoHistoria paciente={historia ? { id: existente.id, nombre: `${existente.apellido}, ${existente.nombre}` } : null} alCerrar={() => setHistoria(false)} />
               </section>
             )}
           </DialogBody>

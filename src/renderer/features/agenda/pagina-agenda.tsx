@@ -15,28 +15,19 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { fechaISO, fechaLarga } from '@/lib/fechas';
+import { useAhora } from '@/lib/ahora';
 import { cn } from '@/lib/utils';
 import { useCargarEjemplo, useProfesionales, useResumen } from '@/features/comun/consultas';
 import { Vacio } from '@/features/comun/encabezado';
 import { COLOR, nombreCompleto } from '@/features/profesionales/colores';
 import { useAgenda, useCargarTurnosEjemplo } from './consultas-agenda';
-import { DetalleTurno } from './detalle-turno';
+import { useDialogosTurno } from './dialogos-turno';
 import { DialogoTurno, type ModoTurno } from './dialogo-turno';
 import { ESTILO_ESTADO } from './estado';
 import { Grilla, type ColumnaAgenda } from './grilla';
 
 type Vista = 'dia' | 'semana';
 const esFecha = (f: string | null): f is string => Boolean(f && /^\d{4}-\d{2}-\d{2}$/.test(f) && !Number.isNaN(Date.parse(f)));
-
-/** La hora actual, actualizada cada 30 segundos (para la línea roja y los libres de hoy). */
-function useAhora(): Date {
-  const [ahora, setAhora] = useState(() => new Date());
-  useEffect(() => {
-    const t = window.setInterval(() => setAhora(new Date()), 30_000);
-    return () => window.clearInterval(t);
-  }, []);
-  return ahora;
-}
 
 /** "16 al 22 de noviembre" o "30 de noviembre al 6 de diciembre". */
 function textoSemana(desde: Date, hasta: Date): string {
@@ -67,7 +58,6 @@ export function PaginaAgenda() {
   const agenda = useAgenda(rango.desde, rango.hasta);
 
   const [modo, setModo] = useState<ModoTurno | null>(null);
-  const [detalleId, setDetalleId] = useState<number | null>(null);
 
   const ir = (cambios: Record<string, string | null>) => {
     const nuevos = new URLSearchParams(params);
@@ -164,7 +154,12 @@ export function PaginaAgenda() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agenda.data, todos, vista, fecha, profElegido, profSemana, hoy]);
 
-  const detalle = agenda.data?.turnos.find((t) => t.id === detalleId) ?? null;
+  const dialogos = useDialogosTurno({
+    turnos: agenda.data?.turnos ?? [],
+    profesionales: todos,
+    hoy,
+    alReprogramar: (t) => setModo({ tipo: 'mover', turno: t }),
+  });
   const esHoy = vista === 'dia' ? fecha === hoy : rango.desde <= hoy && hoy <= rango.hasta;
   const paso = vista === 'dia' ? 1 : 7;
   const mover = (dias: number) => ir({ fecha: fechaISO(addDays(parseISO(fecha), dias)) });
@@ -257,7 +252,7 @@ export function PaginaAgenda() {
           </div>
         </div>
 
-        {columnas.length > 0 && <ResumenDeEstados turnos={visibles} cancelados={cancelados} alElegir={(t) => setDetalleId(t.id)} />}
+        {columnas.length > 0 && <ResumenDeEstados turnos={visibles} cancelados={cancelados} alElegir={dialogos.abrirDetalle} />}
 
         {resumen.data && resumen.data.turnos === 0 && resumen.data.pacientes > 0 && (
           <p className="flex flex-wrap items-center gap-3 rounded-lg bg-acento-suave px-4 py-3 text-[15px] text-acento-fuerte">
@@ -278,7 +273,7 @@ export function PaginaAgenda() {
           ahora={minutoAhora}
           claveVista={`${vista}-${rango.desde}-${profElegido}`}
           alElegirLibre={(c, desde) => setModo({ tipo: 'nuevo', profesionalId: c.profesional.id, fecha: c.fecha, desde })}
-          alElegirTurno={(t) => setDetalleId(t.id)}
+          alElegirTurno={dialogos.abrirDetalle}
         />
       ) : (
         agenda.isSuccess && (
@@ -295,16 +290,7 @@ export function PaginaAgenda() {
       )}
 
       <DialogoTurno modo={modo} profesionales={todos} hoy={hoy} alCerrar={() => setModo(null)} alListo={(f) => f !== fecha && vista === 'dia' && ir({ fecha: f })} />
-      <DetalleTurno
-        turno={detalle}
-        profesional={todos.find((p) => p.id === detalle?.profesionalId)}
-        hoy={hoy}
-        alCerrar={() => setDetalleId(null)}
-        alReprogramar={(t) => {
-          setDetalleId(null);
-          setModo({ tipo: 'mover', turno: t });
-        }}
-      />
+      {dialogos.elementos}
     </div>
   );
 }

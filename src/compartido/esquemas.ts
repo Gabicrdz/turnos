@@ -60,6 +60,8 @@ export const esquemaProfesional = z
     matricula: textoOpcional(30),
     color: z.enum(COLORES_PROFESIONAL).default('eucalipto'),
     duracionTurnoMin: z.number().int().min(5, 'El turno dura al menos 5 minutos.').max(240, 'El turno dura como máximo 4 horas.'),
+    /** Lo que cobra una consulta particular (se propone al cobrar). 0 = sin precio cargado. */
+    precioConsultaCentavos: z.number().int().min(0).max(100_000_000, 'El precio es demasiado alto.').default(0),
     horarios: z.array(esquemaFranja).max(50),
   })
   .superRefine((p, ctx) => {
@@ -130,6 +132,8 @@ export const esquemaConsultorio = z.object({
   direccion: textoOpcional(80),
   telefono: textoOpcional(40),
 });
+
+export const esquemaMensajeRecordatorio = texto('el mensaje del recordatorio', 600);
 export type DatosConsultorio = z.input<typeof esquemaConsultorio>;
 
 // ---------- Turnos ----------
@@ -164,3 +168,41 @@ export const esquemaRango = z
     message: `La agenda se pide de a ${MAXIMO_DIAS_AGENDA} días como máximo.`,
   });
 export type DatosRango = z.input<typeof esquemaRango>;
+
+// ---------- Consultas (historia clínica) ----------
+export const esquemaConsulta = z.object({
+  turnoId: id,
+  motivo: textoOpcional(120),
+  evolucion: texto('la evolución (qué se vio en la consulta)', 4000),
+  diagnostico: textoOpcional(200),
+  indicaciones: textoOpcional(2000),
+});
+export type DatosConsulta = z.input<typeof esquemaConsulta>;
+
+// ---------- Cobros ----------
+export const METODOS = ['efectivo', 'transferencia', 'debito', 'credito'] as const;
+export const NOMBRE_METODO: Record<(typeof METODOS)[number], string> = {
+  efectivo: 'Efectivo',
+  transferencia: 'Transferencia',
+  debito: 'Débito',
+  credito: 'Crédito',
+};
+
+export const esquemaCobro = z
+  .object({
+    turnoId: id,
+    tipo: z.enum(['particular', 'obra_social']),
+    obraSocialId: id.nullable().default(null),
+    numeroAutorizacion: textoOpcional(40),
+    /** Lo que paga el paciente: la consulta particular, o el copago / plus con obra social. */
+    montoCentavos: z.number().int().min(0).max(100_000_000, 'El importe es demasiado alto.'),
+    metodo: z.enum(METODOS).nullable().default(null),
+  })
+  .superRefine((c, ctx) => {
+    if (c.tipo === 'particular' && c.montoCentavos === 0) ctx.addIssue({ code: 'custom', message: 'Escribí cuánto paga.', path: ['montoCentavos'] });
+    if (c.tipo === 'obra_social' && c.obraSocialId === null) ctx.addIssue({ code: 'custom', message: 'Elegí la obra social.', path: ['obraSocialId'] });
+    if (c.montoCentavos > 0 && c.metodo === null) ctx.addIssue({ code: 'custom', message: 'Elegí cómo paga.', path: ['metodo'] });
+  })
+  // Sin importe, el método no tiene sentido; con particular, la obra social tampoco
+  .transform((c) => ({ ...c, metodo: c.montoCentavos > 0 ? c.metodo : null, obraSocialId: c.tipo === 'particular' ? null : c.obraSocialId }));
+export type DatosCobro = z.input<typeof esquemaCobro>;

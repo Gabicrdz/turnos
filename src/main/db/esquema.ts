@@ -26,6 +26,7 @@ export const profesionales = sqliteTable('profesionales', {
   matricula: text('matricula').notNull().default(''),
   color: text('color').notNull().default('eucalipto'),
   duracionTurnoMin: integer('duracion_turno_min').notNull().default(30),
+  precioConsultaCentavos: integer('precio_consulta_centavos').notNull().default(0),
   activo: integer('activo', { mode: 'boolean' }).notNull().default(true),
   creadoEn: text('creado_en').notNull().default(ahora),
 });
@@ -80,6 +81,42 @@ export const turnos = sqliteTable('turnos', {
   estado: text('estado').notNull().default('reservado'),
   motivo: text('motivo').notNull().default(''),
   llegoEn: text('llego_en'),
+  recordadoEn: text('recordado_en'),
   creadoEn: text('creado_en').notNull().default(ahora),
   actualizadoEn: text('actualizado_en').notNull().default(ahora),
+});
+
+export const consultas = sqliteTable('consultas', {
+  id: integer('id').primaryKey(),
+  turnoId: integer('turno_id')
+    .notNull()
+    .references(() => turnos.id),
+  pacienteId: integer('paciente_id')
+    .notNull()
+    .references(() => pacientes.id),
+  profesionalId: integer('profesional_id')
+    .notNull()
+    .references(() => profesionales.id),
+  fecha: text('fecha').notNull(),
+  motivo: text('motivo').notNull().default(''),
+  evolucion: text('evolucion').notNull(),
+  diagnostico: text('diagnostico').notNull().default(''),
+  indicaciones: text('indicaciones').notNull().default(''),
+  creadoEn: text('creado_en').notNull().default(ahora),
+  actualizadoEn: text('actualizado_en').notNull().default(ahora),
+});
+
+export const cobros = sqliteTable('cobros', {
+  id: integer('id').primaryKey(),
+  turnoId: integer('turno_id')
+    .notNull()
+    .references(() => turnos.id),
+  tipo: text('tipo').notNull(),
+  obraSocialId: integer('obra_social_id').references(() => obrasSociales.id),
+  numeroAutorizacion: text('numero_autorizacion').notNull().default(''),
+  montoCentavos: integer('monto_centavos').notNull().default(0),
+  metodo: text('metodo'),
+  anulado: integer('anulado', { mode: 'boolean' }).notNull().default(false),
+  anuladoEn: text('anulado_en'),
+  creadoEn: text('creado_en').notNull().default(ahora),
 });

@@ -44,6 +44,19 @@ export function estadosPosibles(estado: EstadoTurno, fecha: string, hoy: string)
   }
 }
 
+/**
+ * Lo mismo, pero teniendo en cuenta lo que ya quedó registrado en el turno:
+ * con notas de consulta no vuelve atrás de "atendido", y cobrado no vuelve a
+ * pendiente ni se cancela (primero hay que anular el cobro). El main controla igual.
+ */
+export function estadosPermitidos(
+  t: { estado: EstadoTurno; fecha: string; consultaId: number | null; cobro: object | null },
+  hoy: string,
+): EstadoTurno[] {
+  if (t.estado === 'atendido' && t.consultaId !== null) return [];
+  return estadosPosibles(t.estado, t.fecha, hoy).filter((e) => !t.cobro || e === 'en_sala' || e === 'atendido');
+}
+
 /** ¿Se puede cambiar el día u horario? Solo los turnos pendientes. */
 export const sePuedeReprogramar = (estado: EstadoTurno) => estado === 'reservado' || estado === 'confirmado';
 

@@ -3,11 +3,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { EstadoTurno } from '@compartido/agenda';
-import type { DatosMoverTurno, DatosTurno } from '@compartido/esquemas';
+import type { DatosCobro, DatosConsulta, DatosMoverTurno, DatosTurno } from '@compartido/esquemas';
 import { desenvolver, turnos } from '@/lib/api';
 import { CLAVES, useAccion } from '@/features/comun/consultas';
 
-const AFECTADAS = [CLAVES.agenda, CLAVES.libres, CLAVES.turnosPaciente];
+const AFECTADAS = [CLAVES.agenda, CLAVES.libres, CLAVES.turnosPaciente, CLAVES.historia];
 
 export function useAgenda(desde: string, hasta: string) {
   return useQuery({
@@ -63,3 +63,23 @@ export function useCambiarEstado() {
 
 export const useCargarTurnosEjemplo = () =>
   useAccion((_: void) => desenvolver(turnos().sistema.cargarTurnosEjemplo()), AFECTADAS, (n) => `Listo: ${n} turnos de ejemplo cargados`);
+
+// ---------- Etapa 3: consultas, cobros y recordatorios ----------
+export function useHistoria(pacienteId: number | null) {
+  return useQuery({
+    queryKey: [...CLAVES.historia, pacienteId],
+    queryFn: () => desenvolver(turnos().consultas.historia(pacienteId!)),
+    enabled: pacienteId !== null,
+    staleTime: 0,
+  });
+}
+
+export const useGuardarConsulta = () => useAccion((d: DatosConsulta) => desenvolver(turnos().consultas.guardar(d)), AFECTADAS);
+export const useRegistrarCobro = () => useAccion((d: DatosCobro) => desenvolver(turnos().cobros.registrar(d)), AFECTADAS, 'Cobro registrado');
+export const useAnularCobro = () => useAccion((id: number) => desenvolver(turnos().cobros.anular(id)), AFECTADAS, 'Cobro anulado');
+
+/** Abre WhatsApp con el recordatorio (lo arma el main) y refresca para mostrar "enviado". */
+export function useRecordar() {
+  const accion = useAccion((id: number) => desenvolver(turnos().turnos.recordar(id)), AFECTADAS);
+  return { ...accion, recordar: (id: number) => accion.mutate(id, { onError: (e) => toast.error(e.message) }) };
+}

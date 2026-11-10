@@ -1,5 +1,5 @@
 // Tipos que comparten el main y la ventana (lo que VUELVE del main).
-import type { COLORES_PROFESIONAL } from './esquemas';
+import type { COLORES_PROFESIONAL, METODOS } from './esquemas';
 import type { Franja } from './horarios';
 import type { EstadoTurno } from './agenda';
 
@@ -23,6 +23,7 @@ export interface Profesional {
   matricula: string;
   color: ColorProfesional;
   duracionTurnoMin: number;
+  precioConsultaCentavos: number;
   activo: boolean;
   horarios: Franja[];
 }
@@ -56,6 +57,7 @@ export interface Consultorio {
   nombreConsultorio: string;
   direccion: string;
   telefono: string;
+  mensajeRecordatorio: string;
 }
 
 export interface Resumen {
@@ -81,13 +83,47 @@ export interface Turno {
   estado: EstadoTurno;
   motivo: string;
   llegoEn: string | null;
+  recordadoEn: string | null;
+  /** El cobro vigente del turno, si ya se cobró. */
+  cobro: CobroDeTurno | null;
+  /** Si ya tiene las notas de la consulta. */
+  consultaId: number | null;
   /** "Apellido, Nombre" */
   paciente: string;
   dni: string | null;
   telefono: string;
+  obraSocialId: number | null;
   obraSocial: string | null;
   numeroAfiliado: string;
+  fechaNacimiento: string | null;
+  notasPaciente: string;
   pacienteActivo: boolean;
+}
+
+export type MetodoPago = (typeof METODOS)[number];
+
+export interface CobroDeTurno {
+  id: number;
+  tipo: 'particular' | 'obra_social';
+  obraSocial: string | null;
+  numeroAutorizacion: string;
+  montoCentavos: number;
+  metodo: MetodoPago | null;
+}
+
+/** Una entrada de la historia clínica. */
+export interface Consulta {
+  id: number;
+  turnoId: number;
+  fecha: string;
+  profesional: string;
+  profesionalId: number;
+  motivo: string;
+  evolucion: string;
+  diagnostico: string;
+  indicaciones: string;
+  /** Solo se puede corregir el mismo día; después queda cerrada. */
+  editable: boolean;
 }
 
 /** Lo que necesita la agenda para un rango de días. */
