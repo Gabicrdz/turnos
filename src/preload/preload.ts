@@ -61,6 +61,17 @@ const api: ApiTurnos = {
     guardar: (datos) => pedir(CANALES.consultorioGuardar, datos),
     guardarMensaje: (mensaje) => pedir(CANALES.consultorioMensaje, mensaje),
   },
+  reportes: {
+    obtener: (periodo) => pedir(CANALES.reportesObtener, periodo),
+    exportarOrdenes: (periodo, obraSocialId) => pedir(CANALES.reportesOrdenes, periodo, obraSocialId),
+  },
+  copias: {
+    estado: () => pedir(CANALES.copiasEstado),
+    exportar: () => pedir(CANALES.copiasExportar),
+    elegir: () => pedir(CANALES.copiasElegir),
+    restaurar: () => pedir(CANALES.copiasRestaurar),
+    abrirCarpeta: () => pedir(CANALES.copiasAbrirCarpeta),
+  },
   sistema: {
     info: () => pedir(CANALES.sistemaInfo),
     resumen: () => pedir(CANALES.sistemaResumen),

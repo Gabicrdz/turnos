@@ -2,7 +2,7 @@
 // (según el rol), y abajo Ajustes y quién está usando el sistema.
 import { NavLink } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
-import { CalendarDays, ConciergeBell, Lock, Settings, Stethoscope, UsersRound, type LucideIcon } from 'lucide-react';
+import { CalendarDays, ChartColumn, ConciergeBell, Lock, Settings, Stethoscope, UsersRound, type LucideIcon } from 'lucide-react';
 import { NOMBRE_ROL } from '@compartido/tipos';
 import { Button } from '@/components/ui/button';
 import { Iniciales } from '@/features/sesion/iniciales';
@@ -21,6 +21,7 @@ const SECCIONES: { ruta: string; nombre: string; icono: LucideIcon; soloAdmin?: 
   { ruta: '/recepcion', nombre: 'Recepción', icono: ConciergeBell },
   { ruta: '/pacientes', nombre: 'Pacientes', icono: UsersRound },
   { ruta: '/profesionales', nombre: 'Profesionales', icono: Stethoscope, soloAdmin: true },
+  { ruta: '/reportes', nombre: 'Reportes', icono: ChartColumn, soloAdmin: true },
 ];
 
 function Enlace({ ruta, nombre, icono: Icono }: Omit<(typeof SECCIONES)[number], 'soloAdmin'>) {

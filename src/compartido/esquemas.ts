@@ -230,3 +230,10 @@ export const esquemaUsuario = z
   // Recepción nunca queda vinculada a un profesional (no ve la historia clínica)
   .transform((u) => ({ ...u, profesionalId: u.rol === 'recepcion' ? null : u.profesionalId }));
 export type DatosUsuario = z.input<typeof esquemaUsuario>;
+
+/** Período de un reporte: hasta un año. */
+export const esquemaPeriodo = z
+  .object({ desde: esquemaFecha, hasta: esquemaFecha })
+  .refine((r) => r.desde <= r.hasta, { message: '"Hasta" no puede ser antes que "desde".' })
+  .refine((r) => (Date.parse(r.hasta) - Date.parse(r.desde)) / 86_400_000 <= 366, { message: 'El período puede ser de hasta un año.' });
+export type DatosPeriodo = z.input<typeof esquemaPeriodo>;

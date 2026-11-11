@@ -184,3 +184,62 @@ export interface Usuario {
 export interface ResultadoEjemplo extends Resumen {
   usuarios: { nombre: string; rol: Rol; pin: string }[];
 }
+
+// ---------- Reportes (etapa 5) ----------
+export interface Reporte {
+  desde: string;
+  hasta: string;
+  totales: {
+    turnos: number;
+    atendidos: number;
+    ausentes: number;
+    cancelados: number;
+    /** ausentes / (atendidos + ausentes); null si todavía no hay turnos resueltos */
+    ausentismo: number | null;
+    ingresosCentavos: number;
+    porMetodo: { metodo: MetodoPago; centavos: number; cantidad: number }[];
+    ordenes: number;
+    atendidosSinCobrar: number;
+    pacientesAtendidos: number;
+    /** Pacientes cuya PRIMERA atención fue en el período */
+    pacientesNuevos: number;
+  };
+  porProfesional: {
+    profesionalId: number;
+    nombre: string;
+    color: ColorProfesional;
+    turnos: number;
+    atendidos: number;
+    ausentes: number;
+    ausentismo: number | null;
+    /** Turnos que entraban según su horario (sin días sin atención) */
+    disponibles: number;
+    /** turnos dados (no cancelados) / disponibles */
+    ocupacion: number | null;
+    ingresosCentavos: number;
+  }[];
+  /** Atenciones por cobertura cobrada: cada obra social, "Particular" y "Sin cobrar". */
+  porCobertura: { obraSocialId: number | null; nombre: string; tipo: 'obra_social' | 'particular' | 'sin_cobrar'; atenciones: number; ordenes: number; montoCentavos: number }[];
+  porDia: { fecha: string; atendidos: number; ausentes: number; ingresosCentavos: number }[];
+  /** Pacientes con 2 o más ausencias en el período */
+  faltadores: { pacienteId: number; paciente: string; telefono: string; ausentes: number; turnos: number }[];
+}
+
+// ---------- Copias de seguridad (etapa 5) ----------
+export interface InfoCopia {
+  ruta: string;
+  nombre: string;
+  /** 'AAAA-MM-DD HH:MM' */
+  fecha: string;
+  bytes: number;
+}
+export interface EstadoCopias {
+  carpeta: string;
+  automaticas: InfoCopia[];
+  baseDeDatos: string;
+}
+/** Lo que se encontró en la copia elegida, para confirmar antes de restaurar. */
+export interface CopiaElegida {
+  nombre: string;
+  descripcion: string;
+}

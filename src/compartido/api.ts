@@ -8,6 +8,7 @@ import type {
   DatosConsultorio,
   DatosMoverTurno,
   DatosObraSocial,
+  DatosPeriodo,
   DatosPaciente,
   DatosProfesional,
   DatosRango,
@@ -21,11 +22,15 @@ import type {
   BloqueoCreado,
   Consulta,
   Consultorio,
+  CopiaElegida,
+  EstadoCopias,
+  InfoCopia,
   HorarioLibre,
   InfoSistema,
   ObraSocial,
   Paciente,
   Profesional,
+  Reporte,
   Respuesta,
   ResultadoEjemplo,
   Resumen,
@@ -99,6 +104,21 @@ export interface ApiTurnos {
     guardar(datos: DatosConsultorio): Promise<Respuesta<null>>;
     guardarMensaje(mensaje: string): Promise<Respuesta<null>>;
   };
+  /** Solo administración. */
+  reportes: {
+    obtener(periodo: DatosPeriodo): Promise<Respuesta<Reporte>>;
+    /** Guarda un CSV con las órdenes de una obra social (null si se canceló el diálogo). */
+    exportarOrdenes(periodo: DatosPeriodo, obraSocialId: number): Promise<Respuesta<{ ruta: string; cantidad: number } | null>>;
+  };
+  /** Copias de seguridad (solo administración). */
+  copias: {
+    estado(): Promise<Respuesta<EstadoCopias>>;
+    exportar(): Promise<Respuesta<InfoCopia | null>>;
+    elegir(): Promise<Respuesta<CopiaElegida | null>>;
+    /** Restaura la copia elegida y reinicia el programa. */
+    restaurar(): Promise<Respuesta<null>>;
+    abrirCarpeta(): Promise<Respuesta<null>>;
+  };
   sistema: {
     info(): Promise<Respuesta<InfoSistema>>;
     resumen(): Promise<Respuesta<Resumen>>;
@@ -148,5 +168,12 @@ export const CANALES = {
   sistemaInfo: 'sistema:info',
   sistemaResumen: 'sistema:resumen',
   sistemaEjemplo: 'sistema:ejemplo',
+  reportesObtener: 'reportes:obtener',
+  reportesOrdenes: 'reportes:ordenes',
+  copiasEstado: 'copias:estado',
+  copiasExportar: 'copias:exportar',
+  copiasElegir: 'copias:elegir',
+  copiasRestaurar: 'copias:restaurar',
+  copiasAbrirCarpeta: 'copias:abrir-carpeta',
   sistemaEjemploTurnos: 'sistema:ejemplo-turnos',
 } as const;

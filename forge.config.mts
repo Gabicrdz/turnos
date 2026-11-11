@@ -28,13 +28,16 @@ const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
     executableName: 'Turnos',
+    // Ícono del programa (Forge agrega .ico en Windows). Hecho a partir del logo:
+    // assets/icono.svg → icono.png (512 px) → icono.ico (16 a 256 px).
+    icon: './assets/icono',
     // Devuelve true para lo que hay que DEJAR AFUERA del instalador.
     ignore: (archivo) => !incluirEnElInstalador(archivo),
   },
   rebuildConfig: {},
   makers: [
-    // El ícono y el nombre del instalador llegan en la etapa final.
-    new MakerSquirrel({ name: 'turnos', setupExe: 'Turnos-Instalador.exe' }),
+    // Instalador: "Turnos-Instalador.exe" con el mismo ícono.
+    new MakerSquirrel({ name: 'turnos', setupExe: 'Turnos-Instalador.exe', setupIcon: './assets/icono.ico' }),
     new MakerZIP({}, ['darwin']),
   ],
   plugins: [

@@ -19,6 +19,7 @@ import {
   esquemaMoverTurno,
   esquemaObraSocial,
   esquemaPaciente,
+  esquemaPeriodo,
   esquemaPin,
   esquemaProfesional,
   esquemaRango,
@@ -39,6 +40,8 @@ import { anularCobro, registrarCobro } from './servicios/cobros';
 import { enlaceRecordatorio, marcarRecordado } from './servicios/recordatorios';
 import { cargarEjemplo, cargarTurnosEjemplo } from './servicios/ejemplo';
 import { darDeBajaUsuario, guardarUsuario, hayUsuarios, listarUsuarios } from './servicios/usuarios';
+import { reporte } from './servicios/reportes';
+import { abrirCarpetaCopias, elegirCopia, estadoCopias, exportarCopia, exportarOrdenes, restaurarCopiaElegida } from './copias';
 import { cerrarSesion, iniciarSesion, refrescarSesion, requerir, sesionActual, type Permiso } from './servicios/sesion';
 import { agenda, cambiarEstado, darTurno, horariosLibres, moverTurno, proximosLibres, turnosDePaciente } from './servicios/turnos';
 
@@ -178,6 +181,15 @@ export function registrarCanales(info: () => InfoSistema): void {
   });
   manejar(CANALES.sistemaInfo, 'sesion', nada, info);
   manejar(CANALES.sistemaResumen, 'sesion', nada, () => resumen(db()));
+  // ── Reportes y copias (solo administración) ──
+  manejar(CANALES.reportesObtener, 'admin', z.tuple([esquemaPeriodo]), (periodo) => reporte(db(), periodo));
+  manejar(CANALES.reportesOrdenes, 'admin', z.tuple([esquemaPeriodo, id]), (periodo, oid) => exportarOrdenes(periodo, oid));
+  manejar(CANALES.copiasEstado, 'admin', nada, estadoCopias);
+  manejar(CANALES.copiasExportar, 'admin', nada, exportarCopia);
+  manejar(CANALES.copiasElegir, 'admin', nada, elegirCopia);
+  manejar(CANALES.copiasRestaurar, 'admin', nada, restaurarCopiaElegida);
+  manejar(CANALES.copiasAbrirCarpeta, 'admin', nada, abrirCarpetaCopias);
+
   manejar(CANALES.sistemaEjemplo, 'admin', nada, () => cargarEjemplo(db()));
   manejar(CANALES.sistemaEjemploTurnos, 'admin', nada, () => cargarTurnosEjemplo(db()));
 }

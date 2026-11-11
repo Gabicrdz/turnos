@@ -10,6 +10,7 @@ import { Estructura } from '@/components/layout/estructura';
 import { PaginaAgenda } from '@/features/agenda/pagina-agenda';
 import { PaginaPacientes } from '@/features/pacientes/pagina-pacientes';
 import { PaginaRecepcion } from '@/features/recepcion/pagina-recepcion';
+import { PaginaReportes } from '@/features/reportes/pagina-reportes';
 import { PaginaProfesionales } from '@/features/profesionales/pagina-profesionales';
 import { PaginaAjustes } from '@/features/ajustes/pagina-ajustes';
 import { PantallaIngreso } from '@/features/sesion/pantalla-ingreso';
@@ -26,6 +27,7 @@ const router = createHashRouter([
       { path: 'recepcion', element: <PaginaRecepcion /> },
       { path: 'pacientes', element: <PaginaPacientes /> },
       { path: 'profesionales', element: <SoloAdmin><PaginaProfesionales /></SoloAdmin> },
+      { path: 'reportes', element: <SoloAdmin><PaginaReportes /></SoloAdmin> },
       { path: 'ajustes', element: <SoloAdmin><PaginaAjustes /></SoloAdmin> },
       { path: '*', element: <Navigate to="/" replace /> },
     ],

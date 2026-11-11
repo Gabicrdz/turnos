@@ -4,6 +4,7 @@ import path from 'node:path';
 import started from 'electron-squirrel-startup';
 import { abrirBaseDeDatos, cerrarBaseDeDatos, rutaBaseDeDatos } from './db/conexion';
 import { registrarCanales } from './ipc';
+import { copiaAlIniciar } from './copias';
 
 // Instalador de Windows: crea/borra accesos directos y se cierra.
 if (started) app.quit();
@@ -72,6 +73,10 @@ app.whenReady().then(() => {
   abrirBaseDeDatos(path.join(app.getPath('userData'), 'turnos.db'));
   registrarCanales(() => ({ version: app.getVersion(), baseDeDatos: rutaBaseDeDatos() }));
   crearVentana();
+  // Copia de seguridad del día (en Documentos\Turnos\Copias\Automaticas). Se revisa
+  // cada hora por si el programa queda abierto de un día para el otro.
+  void copiaAlIniciar();
+  setInterval(() => void copiaAlIniciar(), 60 * 60 * 1000);
 });
 
 app.on('window-all-closed', () => app.quit());
