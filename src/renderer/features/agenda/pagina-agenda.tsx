@@ -19,6 +19,7 @@ import { useAhora } from '@/lib/ahora';
 import { cn } from '@/lib/utils';
 import { useCargarEjemplo, useProfesionales, useResumen } from '@/features/comun/consultas';
 import { Vacio } from '@/features/comun/encabezado';
+import { useUsuario } from '@/features/sesion/consultas';
 import { COLOR, nombreCompleto } from '@/features/profesionales/colores';
 import { useAgenda, useCargarTurnosEjemplo } from './consultas-agenda';
 import { useDialogosTurno } from './dialogos-turno';
@@ -46,7 +47,9 @@ export function PaginaAgenda() {
 
   const fecha = esFecha(params.get('fecha')) ? params.get('fecha')! : hoy;
   const vista: Vista = params.get('vista') === 'semana' ? 'semana' : 'dia';
-  const profElegido = Number(params.get('prof')) || null;
+  const { usuario, esAdmin } = useUsuario();
+  // Sin elegir nada, un profesional ve su propia agenda ("Todos" queda como prof=todos)
+  const profElegido = params.get('prof') === 'todos' ? null : Number(params.get('prof')) || (usuario?.rol === 'profesional' ? usuario.profesionalId : null);
 
   const profesionales = useProfesionales();
   const resumen = useResumen();
@@ -171,10 +174,12 @@ export function PaginaAgenda() {
           titulo="Empezá por los profesionales"
           acciones={
             <>
-              <Button asChild>
-                <Link to="/profesionales">Cargar profesionales</Link>
-              </Button>
-              {resumen.data?.pacientes === 0 && (
+              {esAdmin && (
+                <Button asChild>
+                  <Link to="/profesionales">Cargar profesionales</Link>
+                </Button>
+              )}
+              {esAdmin && resumen.data?.pacientes === 0 && (
                 <Button variant="outline" disabled={ejemplo.isPending} onClick={() => ejemplo.mutate()}>
                   Cargar datos de ejemplo
                 </Button>
@@ -233,7 +238,7 @@ export function PaginaAgenda() {
                 </button>
               ))}
             </div>
-            <Select value={vista === 'semana' ? String(profSemana?.id ?? '') : profElegido ? String(profElegido) : 'todos'} onValueChange={(v) => ir({ prof: v === 'todos' ? null : v })}>
+            <Select value={vista === 'semana' ? String(profSemana?.id ?? '') : profElegido ? String(profElegido) : 'todos'} onValueChange={(v) => ir({ prof: v })}>
               <SelectTrigger aria-label="Profesional" className="w-[240px]">
                 <SelectValue />
               </SelectTrigger>
@@ -254,7 +259,7 @@ export function PaginaAgenda() {
 
         {columnas.length > 0 && <ResumenDeEstados turnos={visibles} cancelados={cancelados} alElegir={dialogos.abrirDetalle} />}
 
-        {resumen.data && resumen.data.turnos === 0 && resumen.data.pacientes > 0 && (
+        {esAdmin && resumen.data && resumen.data.turnos === 0 && resumen.data.pacientes > 0 && (
           <p className="flex flex-wrap items-center gap-3 rounded-lg bg-acento-suave px-4 py-3 text-[15px] text-acento-fuerte">
             La agenda está vacía. Tocá un horario libre para dar el primer turno, o probala con turnos de ejemplo.
             <Button size="sm" variant="outline" className="ml-auto" disabled={ejemploTurnos.isPending} onClick={() => ejemploTurnos.mutate()}>

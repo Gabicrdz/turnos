@@ -6,6 +6,18 @@ import { CANALES, type ApiTurnos } from '@compartido/api';
 const pedir = (canal: string, ...args: unknown[]) => ipcRenderer.invoke(canal, ...args);
 
 const api: ApiTurnos = {
+  sesion: {
+    actual: () => pedir(CANALES.sesionActual),
+    iniciar: (usuarioId, pin) => pedir(CANALES.sesionIniciar, usuarioId, pin),
+    cerrar: () => pedir(CANALES.sesionCerrar),
+  },
+  usuarios: {
+    paraIngresar: () => pedir(CANALES.usuariosParaIngresar),
+    crearPrimero: (nombre, pin) => pedir(CANALES.usuariosCrearPrimero, nombre, pin),
+    listar: () => pedir(CANALES.usuariosListar),
+    guardar: (datos) => pedir(CANALES.usuariosGuardar, datos),
+    darDeBaja: (id) => pedir(CANALES.usuariosBaja, id),
+  },
   pacientes: {
     buscar: (filtro) => pedir(CANALES.pacientesBuscar, filtro),
     guardar: (datos) => pedir(CANALES.pacientesGuardar, datos),

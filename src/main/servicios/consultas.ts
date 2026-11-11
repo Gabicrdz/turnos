@@ -7,7 +7,7 @@ import type { z } from 'zod';
 import type { BaseDeDatos } from '../db/conexion';
 import type { esquemaConsulta } from '@compartido/esquemas';
 import { NOMBRE_ESTADO } from '@compartido/agenda';
-import type { Consulta } from '@compartido/tipos';
+import type { Consulta, Usuario } from '@compartido/tipos';
 import { ErrorDeUsuario } from './errores';
 import { fechaLocal, momentoLocal } from './fechas';
 import { obtenerTurno } from './turnos';
@@ -35,10 +35,22 @@ export function historiaClinica(db: Lector, pacienteId: number, ahora: Date = ne
 /**
  * Guarda (o corrige, si es el mismo día) las notas de la consulta de un turno
  * y deja el turno como "atendido". Todo en una transacción.
+ * Solo las carga el profesional del turno (el usuario vinculado a él).
  */
-export function guardarConsulta(db: BaseDeDatos, datos: z.output<typeof esquemaConsulta>, ahora: Date = new Date()): number {
+export function guardarConsulta(
+  db: BaseDeDatos,
+  datos: z.output<typeof esquemaConsulta>,
+  usuario: Pick<Usuario, 'id' | 'profesionalId'>,
+  ahora: Date = new Date(),
+): number {
   const turno = obtenerTurno(db, datos.turnoId);
   const hoy = fechaLocal(ahora);
+  if (usuario.profesionalId !== turno.profesionalId) {
+    const { nombre } = db.$client
+      .prepare(`SELECT trim(titulo || ' ' || nombre || ' ' || apellido) AS nombre FROM profesionales WHERE id = ?`)
+      .get(turno.profesionalId) as { nombre: string };
+    throw new ErrorDeUsuario(`Este turno es de ${nombre}: las notas de la consulta las carga ese profesional.`);
+  }
   if (turno.estado === 'cancelado' || turno.estado === 'ausente') {
     throw new ErrorDeUsuario(`Ese turno está ${NOMBRE_ESTADO[turno.estado].toLowerCase()}: no se le puede cargar una consulta.`);
   }
@@ -63,10 +75,10 @@ export function guardarConsulta(db: BaseDeDatos, datos: z.output<typeof esquemaC
       id = Number(
         db.$client
           .prepare(
-            `INSERT INTO consultas (turno_id, paciente_id, profesional_id, fecha, motivo, evolucion, diagnostico, indicaciones, creado_en, actualizado_en)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO consultas (turno_id, paciente_id, profesional_id, fecha, motivo, evolucion, diagnostico, indicaciones, usuario_id, creado_en, actualizado_en)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           )
-          .run(turno.id, turno.pacienteId, turno.profesionalId, turno.fecha, datos.motivo, datos.evolucion, datos.diagnostico, datos.indicaciones, momento, momento)
+          .run(turno.id, turno.pacienteId, turno.profesionalId, turno.fecha, datos.motivo, datos.evolucion, datos.diagnostico, datos.indicaciones, usuario.id, momento, momento)
           .lastInsertRowid,
       );
     }

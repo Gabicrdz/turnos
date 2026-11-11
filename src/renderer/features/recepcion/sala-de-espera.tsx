@@ -13,6 +13,7 @@ import { COLOR, nombreCompleto } from '@/features/profesionales/colores';
 import { useCambiarEstado } from '@/features/agenda/consultas-agenda';
 import { ChipEstado } from '@/features/agenda/estado';
 import { Vacio } from '@/features/comun/encabezado';
+import { useUsuario } from '@/features/sesion/consultas';
 
 interface Acciones {
   abrirDetalle: (t: Turno) => void;
@@ -25,7 +26,9 @@ const minutosDesde = (hora: string, ahora: number) => ahora - aMinutos(hora);
 const duracionTexto = (min: number) => (min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')}`);
 
 export function SalaDeEspera({ turnos, profesionales, ahora, acciones }: { turnos: Turno[]; profesionales: Profesional[]; ahora: number; acciones: Acciones }) {
-  const [filtro, setFiltro] = useState<number | null>(null);
+  const { usuario, atiende } = useUsuario();
+  // Un profesional arranca viendo solo a sus pacientes
+  const [filtro, setFiltro] = useState<number | null>(usuario?.rol === 'profesional' ? usuario.profesionalId : null);
   const estado = useCambiarEstado();
   const deHoy = turnos.filter((t) => filtro === null || t.profesionalId === filtro);
   const porLlegar = deHoy.filter((t) => t.estado === 'reservado' || t.estado === 'confirmado').sort((a, b) => a.desde.localeCompare(b.desde));
@@ -92,10 +95,12 @@ export function SalaDeEspera({ turnos, profesionales, ahora, acciones }: { turno
                   </p>
                 )}
                 <div className="mt-2 flex gap-2">
-                  <Button size="sm" onClick={() => acciones.abrirConsulta(t)}>
-                    <NotebookPen aria-hidden="true" />
-                    Atender
-                  </Button>
+                  {atiende(t) && (
+                    <Button size="sm" onClick={() => acciones.abrirConsulta(t)}>
+                      <NotebookPen aria-hidden="true" />
+                      Atender
+                    </Button>
+                  )}
                   <BotonCobro turno={t} alCobrar={() => acciones.abrirCobro(t)} />
                 </div>
               </Tarjeta>
@@ -108,10 +113,12 @@ export function SalaDeEspera({ turnos, profesionales, ahora, acciones }: { turno
             <Tarjeta key={t.id} turno={t} profesional={profesionalDe(t)} alAbrir={() => acciones.abrirDetalle(t)}>
               <div className="mt-1 flex flex-wrap gap-2">
                 <BotonCobro turno={t} alCobrar={() => acciones.abrirCobro(t)} />
-                <Button size="sm" variant="ghost" onClick={() => acciones.abrirConsulta(t)}>
-                  <NotebookPen aria-hidden="true" />
-                  {t.consultaId ? 'Notas' : 'Cargar notas'}
-                </Button>
+                {atiende(t) && (
+                  <Button size="sm" variant="ghost" onClick={() => acciones.abrirConsulta(t)}>
+                    <NotebookPen aria-hidden="true" />
+                    {t.consultaId ? 'Notas' : 'Cargar notas'}
+                  </Button>
+                )}
               </div>
             </Tarjeta>
           ))}

@@ -29,18 +29,21 @@ type Lector = Pick<BaseDeDatos, '$client'>;
 const SELECT_TURNO = /* sql */ `
   SELECT t.id, t.profesional_id AS profesionalId, t.paciente_id AS pacienteId, t.fecha, t.desde, t.hasta,
          t.estado, t.motivo, t.llego_en AS llegoEn, t.recordado_en AS recordadoEn,
+         ud.nombre AS dadoPor, t.creado_en AS creadoEn,
          p.apellido || ', ' || p.nombre AS paciente, p.dni, p.telefono, p.obra_social_id AS obraSocialId, o.nombre AS obraSocial,
          p.numero_afiliado AS numeroAfiliado, p.fecha_nacimiento AS fechaNacimiento, p.notas AS notasPaciente,
          p.activo AS pacienteActivo,
          c.id AS cobroId, c.tipo AS cobroTipo, oc.nombre AS cobroObraSocial, c.numero_autorizacion AS cobroAutorizacion,
-         c.monto_centavos AS cobroMonto, c.metodo AS cobroMetodo,
+         c.monto_centavos AS cobroMonto, c.metodo AS cobroMetodo, uc.nombre AS cobroUsuario, c.creado_en AS cobroCreadoEn,
          co.id AS consultaId
   FROM turnos t
   JOIN pacientes p ON p.id = t.paciente_id
   LEFT JOIN obras_sociales o ON o.id = p.obra_social_id
   LEFT JOIN cobros c ON c.turno_id = t.id AND c.anulado = 0
   LEFT JOIN obras_sociales oc ON oc.id = c.obra_social_id
-  LEFT JOIN consultas co ON co.turno_id = t.id`;
+  LEFT JOIN consultas co ON co.turno_id = t.id
+  LEFT JOIN usuarios ud ON ud.id = t.dado_por
+  LEFT JOIN usuarios uc ON uc.id = c.usuario_id`;
 
 type FilaTurno = Omit<Turno, 'pacienteActivo' | 'cobro'> & {
   pacienteActivo: number;
@@ -50,14 +53,25 @@ type FilaTurno = Omit<Turno, 'pacienteActivo' | 'cobro'> & {
   cobroAutorizacion: string | null;
   cobroMonto: number | null;
   cobroMetodo: CobroDeTurno['metodo'];
+  cobroUsuario: string | null;
+  cobroCreadoEn: string | null;
 };
-const aTurno = ({ cobroId, cobroTipo, cobroObraSocial, cobroAutorizacion, cobroMonto, cobroMetodo, ...f }: FilaTurno): Turno => ({
+const aTurno = ({ cobroId, cobroTipo, cobroObraSocial, cobroAutorizacion, cobroMonto, cobroMetodo, cobroUsuario, cobroCreadoEn, ...f }: FilaTurno): Turno => ({
   ...f,
   pacienteActivo: f.pacienteActivo === 1,
   cobro:
     cobroId === null
       ? null
-      : { id: cobroId, tipo: cobroTipo!, obraSocial: cobroObraSocial, numeroAutorizacion: cobroAutorizacion ?? '', montoCentavos: cobroMonto ?? 0, metodo: cobroMetodo },
+      : {
+          id: cobroId,
+          tipo: cobroTipo!,
+          obraSocial: cobroObraSocial,
+          numeroAutorizacion: cobroAutorizacion ?? '',
+          montoCentavos: cobroMonto ?? 0,
+          metodo: cobroMetodo,
+          usuario: cobroUsuario,
+          creadoEn: cobroCreadoEn ?? '',
+        },
 });
 
 /** Todos los turnos (también los cancelados) y los días sin atención de un rango. */
@@ -180,7 +194,8 @@ function conTrigger<T>(fn: () => T): T {
 }
 
 // ---------- Escribir ----------
-export function darTurno(db: BaseDeDatos, datos: z.output<typeof esquemaTurno>, ahora: Date = new Date()): number {
+/** `dadoPor`: el usuario que lo da (queda registrado). */
+export function darTurno(db: BaseDeDatos, datos: z.output<typeof esquemaTurno>, ahora: Date = new Date(), dadoPor: number | null = null): number {
   const profesional = datosProfesional(db, datos.profesionalId);
   const hasta = sumarMinutos(datos.desde, datos.duracionMin ?? profesional.duracionTurnoMin);
   const horario = { profesionalId: datos.profesionalId, pacienteId: datos.pacienteId, fecha: datos.fecha, desde: datos.desde, hasta };
@@ -188,8 +203,8 @@ export function darTurno(db: BaseDeDatos, datos: z.output<typeof esquemaTurno>, 
   return conTrigger(() =>
     Number(
       db.$client
-        .prepare('INSERT INTO turnos (profesional_id, paciente_id, fecha, desde, hasta, motivo) VALUES (?, ?, ?, ?, ?, ?)')
-        .run(horario.profesionalId, horario.pacienteId, horario.fecha, horario.desde, horario.hasta, datos.motivo).lastInsertRowid,
+        .prepare('INSERT INTO turnos (profesional_id, paciente_id, fecha, desde, hasta, motivo, dado_por, creado_en) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(horario.profesionalId, horario.pacienteId, horario.fecha, horario.desde, horario.hasta, datos.motivo, dadoPor, momentoLocal(ahora)).lastInsertRowid,
     ),
   );
 }

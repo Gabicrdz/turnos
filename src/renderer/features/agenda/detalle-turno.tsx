@@ -14,6 +14,7 @@ import { Confirmar } from '@/features/comun/confirmar';
 import { dniConPuntos } from '@/features/comun/encabezado';
 import { COLOR, nombreCompleto } from '@/features/profesionales/colores';
 import { useCambiarEstado, useRecordar } from './consultas-agenda';
+import { useUsuario } from '@/features/sesion/consultas';
 import { ChipEstado, esAvance, etiquetaAccion } from './estado';
 
 interface Props {
@@ -33,6 +34,7 @@ const cuando = (momento: string) => `el ${momento.slice(8, 10)}/${momento.slice(
 export function DetalleTurno({ turno, profesional, hoy, alCerrar, alConsulta, alCobrar, alReprogramar }: Props) {
   const estado = useCambiarEstado();
   const whatsapp = useRecordar();
+  const { atiende } = useUsuario();
   const [cancelar, setCancelar] = useState(false);
   if (!turno) return null;
 
@@ -44,7 +46,8 @@ export function DetalleTurno({ turno, profesional, hoy, alCerrar, alConsulta, al
   const color = profesional ? COLOR[profesional.color] : null;
   const pendiente = turno.estado === 'reservado' || turno.estado === 'confirmado';
   const llego = turno.estado === 'en_sala' || turno.estado === 'atendido';
-  const puedeConsulta = llego || (pendiente && turno.fecha <= hoy);
+  // Las notas las carga y las ve solo el profesional del turno (el main controla igual)
+  const puedeConsulta = atiende(turno) && (llego || (pendiente && turno.fecha <= hoy));
   const puedeRecordar = pendiente && turno.fecha >= hoy;
   const celular = numeroWhatsApp(turno.telefono);
 
@@ -76,6 +79,11 @@ export function DetalleTurno({ turno, profesional, hoy, alCerrar, alConsulta, al
               {turno.obraSocial && turno.numeroAfiliado && <span className="block text-[13px] text-tinta-suave">N.º {turno.numeroAfiliado}</span>}
             </Dato>
             <Dato nombre="Motivo">{turno.motivo || '—'}</Dato>
+            {turno.dadoPor && (
+              <Dato nombre="Lo dio">
+                {turno.dadoPor} <span className="text-[13px] font-normal text-tinta-suave">el {turno.creadoEn.slice(8, 10)}/{turno.creadoEn.slice(5, 7)}</span>
+              </Dato>
+            )}
             {turno.llegoEn && (
               <Dato nombre="Llegó a las">
                 <span className="numeros">{turno.llegoEn.slice(11, 16)}</span>

@@ -96,6 +96,11 @@ export function DialogoCobro({ turno, profesional, alCerrar }: { turno: Turno | 
               Pagó el paciente: <strong className="numeros">{pesos(c.montoCentavos)}</strong>
               {c.metodo && ` · ${NOMBRE_METODO[c.metodo]}`}
             </p>
+            {c.creadoEn && (
+              <p className="text-[14px] text-tinta-suave">
+                Cobró {c.usuario ?? 'alguien'} el {c.creadoEn.slice(8, 10)}/{c.creadoEn.slice(5, 7)} a las {c.creadoEn.slice(11, 16)}.
+              </p>
+            )}
           </DialogBody>
           <DialogFooter className="sm:justify-between">
             <Button variant="ghost-destructive" disabled={anularCobro.isPending} onClick={() => setAnular(true)}>

@@ -12,6 +12,7 @@ import type {
   DatosProfesional,
   DatosRango,
   DatosTurno,
+  DatosUsuario,
 } from './esquemas';
 import type { EstadoTurno } from './agenda';
 import type {
@@ -26,11 +27,28 @@ import type {
   Paciente,
   Profesional,
   Respuesta,
+  ResultadoEjemplo,
   Resumen,
   TurnosDePaciente,
+  Usuario,
 } from './tipos';
 
 export interface ApiTurnos {
+  sesion: {
+    /** Quién está usando el sistema (null = nadie: pantalla de ingreso). */
+    actual(): Promise<Respuesta<Usuario | null>>;
+    iniciar(usuarioId: number, pin: string): Promise<Respuesta<Usuario>>;
+    cerrar(): Promise<Respuesta<null>>;
+  };
+  usuarios: {
+    /** Para la pantalla de ingreso: solo nombre y rol. */
+    paraIngresar(): Promise<Respuesta<Usuario[]>>;
+    /** Solo la primera vez (sin usuarios): crea el de administración y entra. */
+    crearPrimero(nombre: string, pin: string): Promise<Respuesta<Usuario>>;
+    listar(): Promise<Respuesta<Usuario[]>>;
+    guardar(datos: DatosUsuario): Promise<Respuesta<number>>;
+    darDeBaja(id: number): Promise<Respuesta<null>>;
+  };
   pacientes: {
     buscar(filtro: DatosBuscarPacientes): Promise<Respuesta<Paciente[]>>;
     guardar(datos: DatosPaciente): Promise<Respuesta<number>>;
@@ -85,13 +103,21 @@ export interface ApiTurnos {
     info(): Promise<Respuesta<InfoSistema>>;
     resumen(): Promise<Respuesta<Resumen>>;
     /** Carga profesionales, obras sociales y pacientes de ejemplo (solo si no hay pacientes). */
-    cargarEjemplo(): Promise<Respuesta<Resumen>>;
+    cargarEjemplo(): Promise<Respuesta<ResultadoEjemplo>>;
     /** Carga turnos de ejemplo (2 semanas atrás y 2 adelante), solo si no hay turnos. */
     cargarTurnosEjemplo(): Promise<Respuesta<number>>;
   };
 }
 
 export const CANALES = {
+  sesionActual: 'sesion:actual',
+  sesionIniciar: 'sesion:iniciar',
+  sesionCerrar: 'sesion:cerrar',
+  usuariosParaIngresar: 'usuarios:para-ingresar',
+  usuariosCrearPrimero: 'usuarios:crear-primero',
+  usuariosListar: 'usuarios:listar',
+  usuariosGuardar: 'usuarios:guardar',
+  usuariosBaja: 'usuarios:baja',
   pacientesBuscar: 'pacientes:buscar',
   pacientesGuardar: 'pacientes:guardar',
   pacientesActivo: 'pacientes:activo',

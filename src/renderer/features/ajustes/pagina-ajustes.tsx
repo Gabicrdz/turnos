@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Campo } from '@/components/ui/campo';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { TarjetaUsuarios } from './tarjeta-usuarios';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { desenvolver, turnos } from '@/lib/api';
@@ -21,8 +22,9 @@ export function PaginaAjustes() {
   const info = useQuery({ queryKey: ['sistema'], queryFn: () => desenvolver(turnos().sistema.info()) });
   return (
     <div className="mx-auto flex max-w-[980px] flex-col gap-8 px-10 pt-9 pb-12">
-      <Encabezado titulo="Ajustes" detalle="Datos del consultorio, recordatorio por WhatsApp y obras sociales." />
+      <Encabezado titulo="Ajustes" detalle="Datos del consultorio, usuarios, recordatorio por WhatsApp y obras sociales." />
       <TarjetaConsultorio />
+      <TarjetaUsuarios />
       <TarjetaRecordatorio />
       <TarjetaObrasSociales />
       {info.data && (

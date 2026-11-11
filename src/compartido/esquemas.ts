@@ -206,3 +206,27 @@ export const esquemaCobro = z
   // Sin importe, el método no tiene sentido; con particular, la obra social tampoco
   .transform((c) => ({ ...c, metodo: c.montoCentavos > 0 ? c.metodo : null, obraSocialId: c.tipo === 'particular' ? null : c.obraSocialId }));
 export type DatosCobro = z.input<typeof esquemaCobro>;
+
+// ---------- Usuarios ----------
+export const ROLES = ['admin', 'profesional', 'recepcion'] as const;
+
+export const esquemaPin = z.string().regex(/^\d{4,6}$/, 'El PIN tiene que ser de 4 a 6 números.');
+
+export const esquemaUsuario = z
+  .object({
+    id: id.optional(),
+    nombre: texto('el nombre', 30),
+    rol: z.enum(ROLES),
+    /** Vincula al usuario con su ficha de profesional (ve la historia clínica). */
+    profesionalId: id.nullable().default(null),
+    /** Obligatorio al crear; al editar, vacío = no cambiar el PIN. */
+    pin: z.union([esquemaPin, z.literal('')]).default(''),
+  })
+  .superRefine((u, ctx) => {
+    if (u.rol === 'profesional' && u.profesionalId === null) {
+      ctx.addIssue({ code: 'custom', message: 'Elegí de qué profesional es este usuario.', path: ['profesionalId'] });
+    }
+  })
+  // Recepción nunca queda vinculada a un profesional (no ve la historia clínica)
+  .transform((u) => ({ ...u, profesionalId: u.rol === 'recepcion' ? null : u.profesionalId }));
+export type DatosUsuario = z.input<typeof esquemaUsuario>;

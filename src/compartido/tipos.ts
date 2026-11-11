@@ -1,5 +1,5 @@
 // Tipos que comparten el main y la ventana (lo que VUELVE del main).
-import type { COLORES_PROFESIONAL, METODOS } from './esquemas';
+import type { COLORES_PROFESIONAL, METODOS, ROLES } from './esquemas';
 import type { Franja } from './horarios';
 import type { EstadoTurno } from './agenda';
 
@@ -84,6 +84,9 @@ export interface Turno {
   motivo: string;
   llegoEn: string | null;
   recordadoEn: string | null;
+  /** Quién dio el turno (null si se cargó antes de que hubiera usuarios) y cuándo. */
+  dadoPor: string | null;
+  creadoEn: string;
   /** El cobro vigente del turno, si ya se cobró. */
   cobro: CobroDeTurno | null;
   /** Si ya tiene las notas de la consulta. */
@@ -109,6 +112,9 @@ export interface CobroDeTurno {
   numeroAutorizacion: string;
   montoCentavos: number;
   metodo: MetodoPago | null;
+  /** Quién cobró y cuándo. */
+  usuario: string | null;
+  creadoEn: string;
 }
 
 /** Una entrada de la historia clínica. */
@@ -156,4 +162,25 @@ export interface BloqueoCreado {
   id: number;
   /** Turnos que ya estaban dados en esos días (hay que avisarles a los pacientes). */
   turnosAfectados: number;
+}
+
+export type Rol = (typeof ROLES)[number];
+
+export const NOMBRE_ROL: Record<Rol, string> = {
+  admin: 'Administración',
+  profesional: 'Profesional',
+  recepcion: 'Recepción',
+};
+
+export interface Usuario {
+  id: number;
+  nombre: string;
+  rol: Rol;
+  /** Si está vinculado a un profesional: ve la historia clínica y carga las notas de sus turnos. */
+  profesionalId: number | null;
+}
+
+/** Lo que devuelve "Cargar datos de ejemplo": los conteos y los usuarios creados con su PIN. */
+export interface ResultadoEjemplo extends Resumen {
+  usuarios: { nombre: string; rol: Rol; pin: string }[];
 }

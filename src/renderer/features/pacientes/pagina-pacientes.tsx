@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { cn } from '@/lib/utils';
 import { edad } from '@/lib/fechas';
 import type { Paciente } from '@compartido/tipos';
+import { useUsuario } from '@/features/sesion/consultas';
 import { useCargarEjemplo, useDemorado, useObrasSociales, usePacientes, useResumen } from '@/features/comun/consultas';
 import { Encabezado, Vacio, dniConPuntos } from '@/features/comun/encabezado';
 import { DialogoPaciente } from './dialogo-paciente';
@@ -29,6 +30,7 @@ export function PaginaPacientes() {
   const obras = useObrasSociales();
   const resumen = useResumen();
   const ejemplo = useCargarEjemplo();
+  const { esAdmin } = useUsuario();
   const lista = pacientes.data ?? [];
   const consultorioVacio = resumen.data?.pacientes === 0 && !incluirBajas;
 
@@ -51,9 +53,11 @@ export function PaginaPacientes() {
               <Button onClick={() => setAbierto('nuevo')}>
                 <Plus /> Cargar el primero
               </Button>
-              <Button variant="outline" disabled={ejemplo.isPending} onClick={() => ejemplo.mutate()}>
-                Cargar datos de ejemplo
-              </Button>
+              {esAdmin && (
+                <Button variant="outline" disabled={ejemplo.isPending} onClick={() => ejemplo.mutate()}>
+                  Cargar datos de ejemplo
+                </Button>
+              )}
             </>
           }
         >

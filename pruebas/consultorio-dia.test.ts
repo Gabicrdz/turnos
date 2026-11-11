@@ -15,7 +15,8 @@ import { anularCobro, registrarCobro } from '../src/main/servicios/cobros';
 import { enlaceRecordatorio, marcarRecordado } from '../src/main/servicios/recordatorios';
 import { guardarConsultorio, guardarMensajeRecordatorio } from '../src/main/servicios/consultorio';
 import { guardarObraSocial } from '../src/main/servicios/obras-sociales';
-import { esquemaObraSocial } from '../src/compartido/esquemas';
+import { esquemaObraSocial, esquemaUsuario } from '../src/compartido/esquemas';
+import { guardarUsuario } from '../src/main/servicios/usuarios';
 import { baseNueva, paciente, profesional } from './ayudantes';
 
 // Lunes 16/11/2026 a las 09:00
@@ -29,18 +30,21 @@ let db: BaseDeDatos;
 let laura: number;
 let juan: number;
 let iasep: number;
+let usuarioLaura: number;
+const ADMIN = { id: 0, rol: 'admin' as const };
 
 beforeEach(() => {
   db = baseNueva();
   laura = profesional(db, { horarios: lunesAViernes, precioConsultaCentavos: 1_800_000 });
   iasep = guardarObraSocial(db, esquemaObraSocial.parse({ nombre: 'IASEP' }));
   juan = paciente(db, { apellido: 'Pérez', nombre: 'Juan', telefono: '370 455-1020' });
+  usuarioLaura = guardarUsuario(db, esquemaUsuario.parse({ nombre: 'Laura', rol: 'profesional', profesionalId: laura, pin: '2222' }));
 });
 
 const turno = (fecha = HOY, desde = '09:00') =>
   darTurno(db, esquemaTurno.parse({ profesionalId: laura, pacienteId: juan, fecha, desde, motivo: 'Control' }), new Date(2026, 10, 16, 7));
 const consulta = (datos: Partial<DatosConsulta> & { turnoId: number }, ahora = AHORA) =>
-  guardarConsulta(db, esquemaConsulta.parse({ evolucion: 'Asintomático.', ...datos }), ahora);
+  guardarConsulta(db, esquemaConsulta.parse({ evolucion: 'Asintomático.', ...datos }), { id: usuarioLaura, profesionalId: laura }, ahora);
 const cobrar = (datos: Partial<DatosCobro> & { turnoId: number }) =>
   registrarCobro(db, esquemaCobro.parse({ tipo: 'particular', montoCentavos: 1_800_000, metodo: 'efectivo', ...datos }), AHORA);
 
@@ -114,8 +118,8 @@ describe('cobros', () => {
     ).toThrow('UNIQUE');
     // Cobrado: no puede volver a "todavía no llegó"
     expect(() => cambiarEstado(db, t, 'confirmado', AHORA)).toThrow('anulá el cobro');
-    anularCobro(db, id, AHORA);
-    expect(() => anularCobro(db, id, AHORA)).toThrow('ya estaba anulado');
+    anularCobro(db, id, ADMIN, AHORA);
+    expect(() => anularCobro(db, id, ADMIN, AHORA)).toThrow('ya estaba anulado');
     expect(obtenerTurno(db, t).cobro).toBeNull();
     cobrar({ turnoId: t, montoCentavos: 1_500_000 });
     expect(obtenerTurno(db, t).cobro!.montoCentavos).toBe(1_500_000);

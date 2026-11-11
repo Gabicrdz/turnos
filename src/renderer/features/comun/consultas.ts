@@ -56,7 +56,11 @@ export function useCargarEjemplo() {
     mutationFn: () => desenvolver(turnos().sistema.cargarEjemplo()),
     onSuccess: async (r) => {
       await cliente.invalidateQueries();
-      toast.success(`Listo: ${r.pacientes} pacientes, ${r.profesionales} profesionales, ${r.obrasSociales} obras sociales y ${r.turnos} turnos de ejemplo`);
+      toast.success(`Listo: ${r.pacientes} pacientes, ${r.profesionales} profesionales, ${r.obrasSociales} obras sociales y ${r.turnos} turnos de ejemplo`, {
+        // Los PIN de los usuarios de ejemplo, para probar cada rol (también están en Ajustes → Usuarios)
+        description: r.usuarios.length ? `Usuarios para probar: ${r.usuarios.map((u) => `${u.nombre} (PIN ${u.pin})`).join(', ')}.` : undefined,
+        duration: r.usuarios.length ? 20_000 : undefined,
+      });
     },
     onError: (e) => toast.error(e.message),
   });

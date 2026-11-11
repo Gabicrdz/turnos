@@ -4,11 +4,12 @@
 import type { z } from 'zod';
 import type { BaseDeDatos } from '../db/conexion';
 import type { esquemaCobro } from '@compartido/esquemas';
+import type { Usuario } from '@compartido/tipos';
 import { ErrorDeUsuario } from './errores';
-import { momentoLocal } from './fechas';
+import { fechaLocal, momentoLocal } from './fechas';
 import { obtenerTurno } from './turnos';
 
-export function registrarCobro(db: BaseDeDatos, datos: z.output<typeof esquemaCobro>, ahora: Date = new Date()): number {
+export function registrarCobro(db: BaseDeDatos, datos: z.output<typeof esquemaCobro>, ahora: Date = new Date(), usuarioId: number | null = null): number {
   const turno = obtenerTurno(db, datos.turnoId);
   if (turno.estado !== 'en_sala' && turno.estado !== 'atendido') {
     throw new ErrorDeUsuario('Solo se cobran los turnos de pacientes que ya llegaron (en sala o atendidos).');
@@ -20,8 +21,10 @@ export function registrarCobro(db: BaseDeDatos, datos: z.output<typeof esquemaCo
   try {
     return Number(
       db.$client
-        .prepare('INSERT INTO cobros (turno_id, tipo, obra_social_id, numero_autorizacion, monto_centavos, metodo, creado_en) VALUES (?, ?, ?, ?, ?, ?, ?)')
-        .run(turno.id, datos.tipo, datos.obraSocialId, datos.numeroAutorizacion, datos.montoCentavos, datos.metodo, momentoLocal(ahora)).lastInsertRowid,
+        .prepare(
+          'INSERT INTO cobros (turno_id, tipo, obra_social_id, numero_autorizacion, monto_centavos, metodo, usuario_id, creado_en) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        )
+        .run(turno.id, datos.tipo, datos.obraSocialId, datos.numeroAutorizacion, datos.montoCentavos, datos.metodo, usuarioId, momentoLocal(ahora)).lastInsertRowid,
     );
   } catch (error) {
     // Dos cobros a la vez del mismo turno: el índice único parcial frena el segundo
@@ -30,7 +33,17 @@ export function registrarCobro(db: BaseDeDatos, datos: z.output<typeof esquemaCo
   }
 }
 
-export function anularCobro(db: BaseDeDatos, id: number, ahora: Date = new Date()): void {
+/**
+ * Anular: cada uno puede corregir lo que cobró HOY; lo de otra persona o de
+ * otro día lo anula solo administración (es plata: queda controlado).
+ */
+export function anularCobro(db: BaseDeDatos, id: number, usuario: Pick<Usuario, 'id' | 'rol'>, ahora: Date = new Date()): void {
+  const cobro = db.$client.prepare('SELECT usuario_id AS usuarioId, creado_en AS creadoEn FROM cobros WHERE id = ?').get(id) as
+    | { usuarioId: number | null; creadoEn: string }
+    | undefined;
+  if (cobro && usuario.rol !== 'admin' && (cobro.usuarioId !== usuario.id || cobro.creadoEn.slice(0, 10) !== fechaLocal(ahora))) {
+    throw new ErrorDeUsuario('Solo administración puede anular cobros de otra persona o de otro día.');
+  }
   const r = db.$client.prepare('UPDATE cobros SET anulado = 1, anulado_en = ? WHERE id = ? AND anulado = 0').run(momentoLocal(ahora), id);
   if (r.changes === 0) throw new ErrorDeUsuario('Ese cobro ya estaba anulado o no existe.');
 }

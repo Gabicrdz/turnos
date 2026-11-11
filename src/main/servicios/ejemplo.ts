@@ -2,8 +2,9 @@
 // de Formosa con 3 profesionales, obras sociales comunes, 30 pacientes y
 // cuatro semanas de turnos. Solo se puede cargar si todavía no hay pacientes.
 import type { BaseDeDatos } from '../db/conexion';
-import { esquemaObraSocial, esquemaPaciente, esquemaProfesional } from '@compartido/esquemas';
-import type { Resumen } from '@compartido/tipos';
+import { esquemaObraSocial, esquemaPaciente, esquemaProfesional, esquemaUsuario } from '@compartido/esquemas';
+import type { ResultadoEjemplo, Rol } from '@compartido/tipos';
+import { guardarUsuario } from './usuarios';
 import { ErrorDeUsuario } from './errores';
 import { guardarObraSocial } from './obras-sociales';
 import { guardarPaciente } from './pacientes';
@@ -74,11 +75,35 @@ const PACIENTES: [string, string, string, string, string, number | null, string]
   ['Zárate', 'Gustavo', '30123456', '1983-09-22', '370 488-9595', 6, 'G-334410'],
 ];
 
-export function cargarEjemplo(db: BaseDeDatos, ahora: Date = new Date()): Resumen {
+/** Usuarios para probar los roles (los PIN se muestran al cargarlos y están en la guía). */
+const USUARIOS_EJEMPLO: { nombre: string; rol: Rol; pin: string; apellidoProfesional: string | null }[] = [
+  { nombre: 'Marta', rol: 'recepcion', pin: '1111', apellidoProfesional: null },
+  { nombre: 'Laura Benítez', rol: 'profesional', pin: '2222', apellidoProfesional: 'Benítez' },
+  { nombre: 'Martín Acosta', rol: 'profesional', pin: '3333', apellidoProfesional: 'Acosta' },
+  { nombre: 'Sofía Ríos', rol: 'profesional', pin: '4444', apellidoProfesional: 'Ríos' },
+];
+
+function crearUsuariosEjemplo(db: BaseDeDatos): ResultadoEjemplo['usuarios'] {
+  const creados: ResultadoEjemplo['usuarios'] = [];
+  for (const u of USUARIOS_EJEMPLO) {
+    if (db.$client.prepare('SELECT 1 FROM usuarios WHERE activo = 1 AND nombre = ? COLLATE NOCASE').get(u.nombre)) continue;
+    let profesionalId: number | null = null;
+    if (u.apellidoProfesional) {
+      const p = db.$client.prepare('SELECT id FROM profesionales WHERE apellido = ? AND activo = 1').get(u.apellidoProfesional) as { id: number } | undefined;
+      if (!p || db.$client.prepare('SELECT 1 FROM usuarios WHERE activo = 1 AND profesional_id = ?').get(p.id)) continue;
+      profesionalId = p.id;
+    }
+    guardarUsuario(db, esquemaUsuario.parse({ nombre: u.nombre, rol: u.rol, profesionalId, pin: u.pin }));
+    creados.push({ nombre: u.nombre, rol: u.rol, pin: u.pin });
+  }
+  return creados;
+}
+
+export function cargarEjemplo(db: BaseDeDatos, ahora: Date = new Date()): ResultadoEjemplo {
   if ((db.$client.prepare('SELECT count(*) AS n FROM pacientes').get() as { n: number }).n > 0) {
     throw new ErrorDeUsuario('Ya hay pacientes cargados: los datos de ejemplo son solo para un consultorio vacío.');
   }
-  db.$client.transaction(() => {
+  const usuarios = db.$client.transaction(() => {
     // Reutiliza obras sociales que ya existan con el mismo nombre
     const ids = OBRAS_SOCIALES.map((nombre) => {
       const existe = db.$client.prepare('SELECT id FROM obras_sociales WHERE nombre = ? COLLATE NOCASE').get(nombre) as { id: number } | undefined;
@@ -92,10 +117,12 @@ export function cargarEjemplo(db: BaseDeDatos, ahora: Date = new Date()): Resume
         esquemaPaciente.parse({ apellido, nombre, dni, fechaNacimiento, telefono, obraSocialId: os === null ? null : ids[os], numeroAfiliado }),
       );
     }
+    const creados = hayProfesionales ? [] : crearUsuariosEjemplo(db);
     // Los turnos, solo con los profesionales de ejemplo (de los propios no conocemos el horario real)
     if (!hayProfesionales) cargarTurnosEjemplo(db, ahora);
+    return creados;
   })();
-  return resumen(db);
+  return { ...resumen(db), usuarios };
 }
 
 /** Números "al azar" pero siempre los mismos (semilla fija): la demo sale igual cada vez. */
@@ -143,12 +170,17 @@ export function cargarTurnosEjemplo(db: BaseDeDatos, ahora: Date = new Date()): 
   const filasPacientes = db.$client.prepare('SELECT id, obra_social_id AS os FROM pacientes WHERE activo = 1 ORDER BY id').all() as { id: number; os: number | null }[];
   const pacientes = filasPacientes.map((p) => p.id);
   const obraSocialDe = new Map(filasPacientes.map((p) => [p.id, p.os]));
+  // Quién hizo cada cosa: la recepción da los turnos y cobra; cada profesional escribe sus notas
+  const recepcion = (db.$client.prepare(`SELECT id FROM usuarios WHERE activo = 1 AND rol = 'recepcion' ORDER BY id LIMIT 1`).get() as { id: number } | undefined)?.id ?? null;
+  const usuarioDe = new Map(
+    (db.$client.prepare('SELECT profesional_id AS p, id FROM usuarios WHERE activo = 1 AND profesional_id IS NOT NULL').all() as { p: number; id: number }[]).map((u) => [u.p, u.id]),
+  );
   const consulta = db.$client.prepare(
-    `INSERT INTO consultas (turno_id, paciente_id, profesional_id, fecha, motivo, evolucion, diagnostico, indicaciones, creado_en, actualizado_en)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO consultas (turno_id, paciente_id, profesional_id, fecha, motivo, evolucion, diagnostico, indicaciones, creado_en, actualizado_en, usuario_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   const cobro = db.$client.prepare(
-    'INSERT INTO cobros (turno_id, tipo, obra_social_id, numero_autorizacion, monto_centavos, metodo, creado_en) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO cobros (turno_id, tipo, obra_social_id, numero_autorizacion, monto_centavos, metodo, creado_en, usuario_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
   );
   const profesionales = listarProfesionales(db).filter((p) => p.activo && p.horarios.length);
   if (!pacientes.length || !profesionales.length) throw new ErrorDeUsuario('Primero cargá profesionales con horario y pacientes.');
@@ -157,7 +189,7 @@ export function cargarTurnosEjemplo(db: BaseDeDatos, ahora: Date = new Date()): 
   const hoy = fechaLocal(ahora);
   const minutoActual = aMinutos(horaLocal(ahora));
   const insertar = db.$client.prepare(
-    'INSERT INTO turnos (profesional_id, paciente_id, fecha, desde, hasta, estado, motivo, llego_en, creado_en) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO turnos (profesional_id, paciente_id, fecha, desde, hasta, estado, motivo, llego_en, creado_en, dado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
   );
   // Cada paciente, como mucho un turno por día (y así nunca se pisan)
   const conTurno = new Set<string>();
@@ -198,21 +230,21 @@ export function cargarTurnosEjemplo(db: BaseDeDatos, ahora: Date = new Date()): 
           const creado = new Date(dia.getFullYear(), dia.getMonth(), dia.getDate() - 1 - Math.floor(r() * 10), 10);
           const notas = NOTAS[p.especialidad] ?? NOTAS['Clínica médica']!;
           const nota = notas[Math.floor(r() * notas.length)]!;
-          const turnoId = Number(insertar.run(p.id, paciente, fecha, desde, hasta, estado, nota[0], llegoEn, `${fechaLocal(creado)} 10:00:00`).lastInsertRowid);
+          const turnoId = Number(insertar.run(p.id, paciente, fecha, desde, hasta, estado, nota[0], llegoEn, `${fechaLocal(creado)} 10:00:00`, recepcion).lastInsertRowid);
           creados++;
 
           // Atendidos: con sus notas (cargadas al terminar el turno) y casi siempre cobrados.
           // Hoy quedan algunos sin cobrar, y a algunos en sala ya se les cobró al llegar.
           const momento = `${fecha} ${hasta}:00`;
-          if (estado === 'atendido') consulta.run(turnoId, paciente, p.id, fecha, nota[0], nota[1], nota[2], nota[3], momento, momento);
+          if (estado === 'atendido') consulta.run(turnoId, paciente, p.id, fecha, nota[0], nota[1], nota[2], nota[3], momento, momento, usuarioDe.get(p.id) ?? null);
           const cobrar = (estado === 'atendido' && (fecha < hoy || r() < 0.55)) || (estado === 'en_sala' && r() < 0.35);
           if (cobrar) {
             const os = obraSocialDe.get(paciente) ?? null;
             const metodo = METODOS_EJEMPLO[Math.floor(r() * METODOS_EJEMPLO.length)]!;
-            if (os === null) cobro.run(turnoId, 'particular', null, '', p.precioConsultaCentavos || 1_500_000, metodo, momento);
+            if (os === null) cobro.run(turnoId, 'particular', null, '', p.precioConsultaCentavos || 1_500_000, metodo, momento, recepcion);
             else {
               const copago = r() < 0.3 ? 300_000 : 0; // a veces cobran un plus
-              cobro.run(turnoId, 'obra_social', os, String(10_000_000 + Math.floor(r() * 89_999_999)), copago, copago ? metodo : null, momento);
+              cobro.run(turnoId, 'obra_social', os, String(10_000_000 + Math.floor(r() * 89_999_999)), copago, copago ? metodo : null, momento, recepcion);
             }
           }
         }

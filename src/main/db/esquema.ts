@@ -82,6 +82,7 @@ export const turnos = sqliteTable('turnos', {
   motivo: text('motivo').notNull().default(''),
   llegoEn: text('llego_en'),
   recordadoEn: text('recordado_en'),
+  dadoPor: integer('dado_por').references(() => usuarios.id),
   creadoEn: text('creado_en').notNull().default(ahora),
   actualizadoEn: text('actualizado_en').notNull().default(ahora),
 });
@@ -102,6 +103,7 @@ export const consultas = sqliteTable('consultas', {
   evolucion: text('evolucion').notNull(),
   diagnostico: text('diagnostico').notNull().default(''),
   indicaciones: text('indicaciones').notNull().default(''),
+  usuarioId: integer('usuario_id').references(() => usuarios.id),
   creadoEn: text('creado_en').notNull().default(ahora),
   actualizadoEn: text('actualizado_en').notNull().default(ahora),
 });
@@ -118,5 +120,17 @@ export const cobros = sqliteTable('cobros', {
   metodo: text('metodo'),
   anulado: integer('anulado', { mode: 'boolean' }).notNull().default(false),
   anuladoEn: text('anulado_en'),
+  creadoEn: text('creado_en').notNull().default(ahora),
+  usuarioId: integer('usuario_id').references(() => usuarios.id),
+});
+
+export const usuarios = sqliteTable('usuarios', {
+  id: integer('id').primaryKey(),
+  nombre: text('nombre').notNull(),
+  rol: text('rol', { enum: ['admin', 'recepcion', 'profesional'] }).notNull(),
+  profesionalId: integer('profesional_id').references(() => profesionales.id),
+  pinHash: text('pin_hash').notNull(),
+  pinSal: text('pin_sal').notNull(),
+  activo: integer('activo', { mode: 'boolean' }).notNull().default(true),
   creadoEn: text('creado_en').notNull().default(ahora),
 });

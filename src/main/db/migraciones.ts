@@ -184,4 +184,32 @@ export const MIGRACIONES: Migracion[] = [
       CREATE UNIQUE INDEX cobros_uno_por_turno ON cobros (turno_id) WHERE anulado = 0;
     `,
   },
+  {
+    nombre: 'Usuarios con PIN y roles; quién dio cada turno, quién cobró y quién escribió cada consulta',
+    sql: /* sql */ `
+      -- El PIN NO se guarda: se guarda su "huella" (hash) con una sal al azar.
+      -- profesional_id vincula al usuario con su ficha de profesional: es lo que
+      -- le permite ver la historia clínica y cargar las notas de SUS turnos.
+      CREATE TABLE usuarios (
+        id             INTEGER PRIMARY KEY,
+        nombre         TEXT    NOT NULL,
+        rol            TEXT    NOT NULL CHECK (rol IN ('admin', 'recepcion', 'profesional')),
+        profesional_id INTEGER REFERENCES profesionales (id),
+        pin_hash       TEXT    NOT NULL,
+        pin_sal        TEXT    NOT NULL,
+        activo         INTEGER NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
+        creado_en      TEXT    NOT NULL DEFAULT (datetime('now', 'localtime')),
+        CHECK (rol <> 'profesional' OR profesional_id IS NOT NULL),
+        CHECK (rol <> 'recepcion' OR profesional_id IS NULL)
+      );
+      CREATE UNIQUE INDEX usuarios_nombre_unico ON usuarios (nombre COLLATE NOCASE) WHERE activo = 1;
+      -- Un solo usuario (activo) por profesional
+      CREATE UNIQUE INDEX usuarios_uno_por_profesional ON usuarios (profesional_id) WHERE activo = 1 AND profesional_id IS NOT NULL;
+
+      -- Quién hizo cada cosa (NULL en lo cargado antes de que hubiera usuarios)
+      ALTER TABLE turnos ADD COLUMN dado_por INTEGER REFERENCES usuarios (id);
+      ALTER TABLE consultas ADD COLUMN usuario_id INTEGER REFERENCES usuarios (id);
+      ALTER TABLE cobros ADD COLUMN usuario_id INTEGER REFERENCES usuarios (id);
+    `,
+  },
 ];

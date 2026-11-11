@@ -18,6 +18,7 @@ import { CLAVES, useAccion, useObrasSociales } from '@/features/comun/consultas'
 import { dniConPuntos } from '@/features/comun/encabezado';
 import { TurnosDelPaciente } from '@/features/agenda/turnos-del-paciente';
 import { DialogoHistoria } from '@/features/consulta/historia';
+import { useUsuario } from '@/features/sesion/consultas';
 
 type Errores = Partial<Record<keyof DatosPaciente, string>>;
 
@@ -47,6 +48,7 @@ interface Props {
 
 export function DialogoPaciente({ paciente, alCerrar, sugerencia = '', alGuardar }: Props) {
   const navegar = useNavigate();
+  const { veClinica } = useUsuario();
   const [historia, setHistoria] = useState(false);
   const [f, setF] = useState(VACIO);
   const [errores, setErrores] = useState<Errores>({});
@@ -192,10 +194,12 @@ export function DialogoPaciente({ paciente, alCerrar, sugerencia = '', alGuardar
                     Turnos
                   </h3>
                   <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => setHistoria(true)}>
-                    <NotebookText aria-hidden="true" />
-                    Historia clínica
-                  </Button>
+                  {veClinica && (
+                    <Button size="sm" variant="outline" onClick={() => setHistoria(true)}>
+                      <NotebookText aria-hidden="true" />
+                      Historia clínica
+                    </Button>
+                  )}
                   {existente.activo && (
                     <Button
                       size="sm"
